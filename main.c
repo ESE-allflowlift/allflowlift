@@ -3,9 +3,15 @@
 #define FALSE 0;
 
 
+
+
 /* 
 	Error Variables
 	Prefix: e_
+
+
+bla bla blaaaaaaaa
+
 */
 
 int e_nivo_breuk = FALSE;							 /* Nivosensor voelerbreuk P1	Bool Active 1 */
