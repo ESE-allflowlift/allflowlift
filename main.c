@@ -1,4 +1,4 @@
-
+#include <stdio.h>
 #define TRUE 1;
 #define FALSE 0;
 
@@ -6,7 +6,7 @@
 
 
 /* 
-	Error Variables
+	Error Variables test randy 123
 	Prefix: e_
 
 
