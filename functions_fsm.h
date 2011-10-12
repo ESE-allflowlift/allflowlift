@@ -4,3 +4,5 @@
  */
 
 
+void f_stop_pomp(int * s_pomp_active);
+
