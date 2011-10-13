@@ -102,30 +102,26 @@ void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
  * @param b_reset array van resetknoppen
  */
 
-void f_pomp_seterror (*(int s_pomp_error), *(const int e_motor_fase), *(const int e_motor_stroom), *(const int e_motor_temp), *(const int b_inschakelingHand), *(const int b_reset) )
+void f_pomp_seterror (*(int s_pomp_error), *(const int e_motor_fase), *(const int e_motor_stroom), *(const int e_motor_temp), *(const int b_handauto), *(const int b_reset) )
 
 {
-	if (*(e_motor_fase+0) = 1 || (*(e_motor_stroom+0) = 1  || *(e_motor_temp+0) = 1  || *(b_handauto+0) = 1)
+	if ((*(e_motor_fase+0) = 1 )|| ((*(e_motor_stroom+0) = 1 ) || (*(e_motor_temp+0) = 1)  || (*(b_handauto+0) = 1))
 	{
-	*(s_pomp_error+0) = 1;
+	*(s_pomp_error+0) = 1; /*als fase of stroom of temp verkeerd is of motor staat in hand dan wordt de error variablele geset*/
 	}
-	if (*(e_motor_fase+1) = 1 || (*(e_motor_stroom+1) = 1 || *(e_motor_temp+1) = 1 || *(b_handauto+1) = 1)
+	if ((*(e_motor_fase+1) = 1) || (*(e_motor_stroom+1) = 1) || (*(e_motor_temp+1) = 1) || (*(b_handauto+1) = 1))
 	{
-	*(s_pomp_error+1) = 1;
+	*(s_pomp_error+1) = 1; /*als fase of stroom of temp verkeerd is of motor staat in hand dan wordt de error variablele geset*/
 	}
-		else;
+	if ((*(b_reset+0) = 1) && (*(e_motor_fase+0) = 0) && (*(e_motor_stroom+0) = 0) && (*(e_motor_temp+0) = 0) && (*(b_handauto+0) = 0))
+	{
+	*(s_pomp_error+0) = 0; /* geen error wel reset error melding wordt 0*/
+	}	
+	if ((*(b_reset+1) = 1) && (*(e_motor_fase+1) = 0) && (*(e_motor_stroom+1) = 0) && (*(e_motor_temp+1) = 0) && (*(b_handauto+1) = 0))
+	{
+	*(s_pomp_error+1) = 0; /* geen error wel reset error melding wordt 0*/
+	}	
 
-	if (*(b_reset+0) = 1)
-	{
-	*(s_pomp_error+0) = 0;
-	*(b_reset+0) = 0;
-	}	
-	if (*(b_reset+1) = 1)
-	{
-	*(s_pomp_error+1) = 0;
-	*(b_reset+1) = 0;
-	}	
-		else;
 }
 
 
