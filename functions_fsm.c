@@ -105,7 +105,7 @@ void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
 void f_pomp_seterror (*(int s_pomp_error), *(const int e_motor_fase), *(const int e_motor_stroom), *(const int e_motor_temp), *(const int b_inschakelingHand), *(const int b_reset) )
 
 {
-	if (*(e_motor_fase+0) = 1 || (*(e_motor_stroom+0) = 1  || *(e_motor_temp+0) = 1  || *(b_handauto+0) = 1)
+	if (*(e_motor_fase+0) = 1 || (*(e_motor_stroom+0)) = 1  || *(e_motor_temp+0) = 1  || (*(b_handauto+0) = 1)
 	{
 	*(s_pomp_error+0) = 1;
 	}
