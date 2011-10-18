@@ -49,7 +49,7 @@ int s_hoogwater; /*Hoogwater melding	Bool Active 1 */
 int b_handAuto[2]; /* 2x Handmatig of automatische stand (per pomp)	Array Bool
 0=auto 1=hand */
 int b_inschakelingHand[2]; /* 2x	Inschakeling hand (per pomp) Array Bool Active 1 */
-int b_reset[2]; /* 2x Reset (per pomp) Array Bool Active 1  waneer de reset knop ingedrukt wordt moet deze hoog worden, hij word door de fuctie set_pomp_error gereset*/
+int b_reset[2]; /* 2x Reset (per pomp) Array Bool Active 1  waneer de reset knop ingedrukt wordt moet deze hoog worden, hij word na bijv 1 seconden weer laag */
 int b_cursur_up; /*	cursur knoppen	array bool active1 */
 int b_cursur_down; /* cursur knoppen	array bool active1 */
 int b_cursur_left;	/* cursur knoppen	array bool active1 */
