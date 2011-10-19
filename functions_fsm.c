@@ -13,7 +13,7 @@
 
 void f_stop_pomp(int * s_pomp_active) 
 {
-	f_eeprom_looptijd;
+	/* f_eeprom_looptijd; */
 	*(s_pomp_active+0) = 0;
 	*(s_pomp_active+1) = 0;
 
@@ -40,7 +40,7 @@ void f_start_pomp(int * s_pomp_active,const long int * z_pomp_looptijd,int * t_l
 				*(s_pomp_active+1) = 1;	
 			}								/*start pomp 2*/
 				else;  /*allebij in error, geen pomp start*/
-	f_eeprom_inschakelingen
+	/* f_eeprom_inschakelingen */
 	  /* er moet nog een functie start timer gemaakt worden */
 	/* f_starttimer (maakt gebruik van hardware timer's en interupts*/
 

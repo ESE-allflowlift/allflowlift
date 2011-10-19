@@ -12,6 +12,8 @@
 
 */
 
+void blaat(void)
+
 int e_nivo_breuk = FALSE; /* Nivosensor voelerbreuk P1	Bool Active 1 */
 int e_nivo_kortsluiting = FALSE; /* Nivosensor kortsluiting	Bool Active 1 */
 int e_motor_fase[2] = {FALSE, FALSE}; /* Motorfase verkeerd (per pomp)	Array Bool Active 1 */
