@@ -219,9 +219,11 @@ void fsm_normaal (void)
 
 void f_stop_pomp(void) 
 {
+
 	f_eeprom_looptijd;
 	(a_pomp_active+0) = 0;
 	(a_pomp_active+1) = 0;
+
 
 }
 
@@ -246,8 +248,10 @@ void f_start_pomp(void)
 				(a_pomp_active+1) = 1;	
 			}								/*start pomp 2*/
 				else;  /*allebij in error, geen pomp start*/
+
 	f_eeprom_inschakelingen
 }
+
 
 	  /* er moet nog een functie start timer gemaakt worden */
 	/* f_starttimer (maakt gebruik van hardware timer's en interupts*/
@@ -290,7 +294,7 @@ void f_eeprom_looptijd (void)
  * 
  */
 
-void f_eeprom_looptijd (void)
+void f_eeprom_inschakelingen (void)
 {
 /* haal z_pomp_inschakelingen op uit het eeprom */	
 
