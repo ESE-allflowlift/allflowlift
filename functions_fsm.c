@@ -6,16 +6,222 @@
 
 #ifndef f
 
+
+/** 
+ * fuctie fsm_motoren
+ * @param fsm voor aansturen van de pompen  
+ * @param statehoog de state waar de fsm in moet komen
+ */
+
+void fsm_motoren (void)
+{
+
+	switch  (statehoog)
+	{
+		case 1: /*check hoogwater*/			
+			if (f_hoogwater = 0)
+			{
+					statemachine_normaal;
+				statehoog = 1; 
+					f_reset_hoogwater_alarm;
+			}			
+			if (f_hoogwater != 0)
+			{
+				statehoog = 2 ;	
+					f_hoogwater_alarm;
+					f_start_pomp;		
+					f_start_nadraai2timer;
+				statenormaal = 0 ;
+			}			
+		break;
+		
+
+		case 2: /* hoogwater */		
+			if (b_reset[0] = 1 || b_reset[1] = 1)
+			{
+				statehoog = 1;
+					f_reset_hoogwater_alarm;
+			}
+			if (t_nadraai2 > c_nadraai2)	
+			{
+				statehoog = 4;
+					f_stop_pomp;
+			}
+			if (s_pomp_error = 1)
+			{
+				statehoog = 3;
+					f_stop_pomp;
+					f_start_pomp;
+			}
+			else	
+			{
+				statehoog = 2;
+			}
+		break;
+		
+
+		case 3: /*pomp restart*/		
+			if (b_reset[0] = 1 ||b_reset[1] = 1)
+			{
+				statehoog = 1;	
+					f_reset_hoogwater_alarm;		
+			}
+			if ( t_nadraai2 > c_nadraai2 )
+			{
+				statehoog = 4;
+					f_stop_pomp;
+			}
+			else 
+			{
+				statehoog = 3;
+			}
+		break;
+		
+
+		case 4: /*pomp uit*/		
+			if (b_reset[0] = 1 ||b_reset[1] = 1)
+			{
+				statehoog = 1;	
+					f_reset_hoogwater_alarm;		
+			}
+			if ( f_hoogwater = 1 )
+			{
+				statehoog = 2;
+					f_hoogwater_alarm;
+					f_start_pomp;		
+					f_start_nadraai2timer;
+			}
+			else 
+			{
+				statehoog = 4;
+			}
+		break;
+	
+		default 
+		{
+			statehoog = 1;
+		}
+	}	
+}
+
+  /*-----------------  begin 'normale' fsm -------------------*/
+
+/** 
+ * fuctie fsm_normaal
+ * @param fsm voor normale werking wordt  uitgevoerd als f hoogwater 0 is
+ * @param statenormaal de state waar de fsm in moet komen
+ */
+
+void fsm_normaal (void)
+{
+	switch (statenormaal)
+	{
+		case 1: /*pomp uit normaal*/
+
+			if (s_nivo > c_nivo_onderste)
+			{
+				statenormaal = 2;
+					f_start_pomp;
+			}
+			else
+			{
+				statenormaal = 1;
+			}
+		break;
+		
+	
+		case 2: 	/*pompaan*/
+
+			if (s_nivo <= c_nivo_uitschakel)
+			{
+				statenormaal = 3;
+					f_start_nadraaiTimer;
+			}
+			if (s_pomp_error => 1)
+			{
+				statenormaal = 4;
+					f_stop_pomp;
+			}
+			else
+			{
+				statenormaal = 2;
+			}
+		break;
+		
+
+		case 3:	/*pomp nadraai*/
+
+			if (t_nadraai > c_nadraai)
+			{
+				statenormaal = 1;
+					f_stop_pomp	;
+			}
+			else
+			{
+				statenormaal = 3;
+			}
+		break;
+		
+
+		case 4:	/*pomp uit error*/
+
+			if (s_nivo < c_nivo_onderste
+			{
+				statenormaal = 5;
+			}
+			if (s_nivo > c_nivo_onderste)
+			{
+				statenormaal = 6;	
+					f_start_pomp
+			}
+			else
+			{
+				statenormaal = 4;
+			}
+		break;
+		
+
+		case 5:	/*wacht op nivo*/
+			if (s_nivo > c_nivo_bovenste)
+			{
+				statenormaal = 6;
+					f_start_pomp
+			}
+			else
+			{
+				statenormaal = 5;
+			}
+		break;
+		
+
+		case 6:	/*pomp aan (direct)*/
+			if (s_nivo <= c_nivo_uitschakel)
+			{
+				statenormaal = 1;
+					f_stop_pomp	;
+			}
+			else 
+			{
+				statenormaal = 6; 
+			}
+		break;
+	}
+}
+
+
+
+/*----------------------- vanaf hier zijn het 'normale' functies*/
+
 /** 
  * fuctie stop pomp 
  * @param a_pomp_active array van actieve pompen
  */
 
-void f_stop_pomp(int * a_pomp_active) 
+void f_stop_pomp(void) 
 {
 	f_eeprom_looptijd;
-	*(a_pomp_active+0) = 0;
-	*(a_pomp_active+1) = 0;
+	(a_pomp_active+0) = 0;
+	(a_pomp_active+1) = 0;
 
 }
 
@@ -28,16 +234,16 @@ void f_stop_pomp(int * a_pomp_active)
  * @param s_pomp_error staat er een pomp in error
  */
 
-void f_start_pomp(int * a_pomp_active,const long int * z_pomp_looptijd,int * t_looptijd,const int * s_pomp_error)
+void f_start_pomp(void)
 {
-	*(t_looptijd) = 0; 
-			if (*(z_pomp_looptijd+0) <= *(z_pomp_looptijd+1) || (* s_pomp_error+1 < 1) && (* s_pomp_error+0 < 1))
+	(t_looptijd) = 0; 
+			if ((z_pomp_looptijd+0) <= (z_pomp_looptijd+1) || (s_pomp_error+1 < 1) && (s_pomp_error+0 < 1))
 			{
-				*(a_pomp_active+0) = 1;
+				(a_pomp_active+0) = 1;
 			}								/*start pomp 1*/
-			if (*(z_pomp_looptijd+0) > *(z_pomp_looptijd+1) || (* s_pomp_error+0 < 1) && (* s_pomp_error+1 < 1))
+			if ((z_pomp_looptijd+0) > (z_pomp_looptijd+1) || (s_pomp_error+0 < 1) && (s_pomp_error+1 < 1))
 			{
-				*(a_pomp_active+1) = 1;	
+				(a_pomp_active+1) = 1;	
 			}								/*start pomp 2*/
 				else;  /*allebij in error, geen pomp start*/
 	f_eeprom_inschakelingen
@@ -57,19 +263,23 @@ void f_start_pomp(int * a_pomp_active,const long int * z_pomp_looptijd,int * t_l
  * @param a_pomp_active welke pomp loopt
  */
 
-void f_eeprom_looptijd (const int * a_pomp_active,long int * z_pomp_looptijd,int * t_looptijd)
+void f_eeprom_looptijd (void)
 {	
-	if (*(a_pomp_active+0) = 1 && *(t_looptijd) > 0)
+/* te doen haal z_pomp_looptijd op uit het eeprom */
+
+	if ((a_pomp_active+0) = 1 && (t_looptijd) > 0)
 	{
-	*(z_pomp_looptijd+0) = *(t_looptijd+0) + *(z_pomp_looptijd+0); 
+		(z_pomp_looptijd+0) = (t_looptijd) + (z_pomp_looptijd+0); 
 	}
-	if (*(a_pomp_active+1) = 1 && *(t_looptijd) > 0)
+	if ((a_pomp_active+1) = 1 && (t_looptijd) > 0)
 	{	
-	*(z_pomp_looptijd+1) = *(t_looptijd) + *(z_pomp_looptijd+1); 
+		(z_pomp_looptijd+1) = (t_looptijd) + (z_pomp_looptijd+1); 
 	}
-		else;
-	*(t_looptijd) = 0;
-/* sla z_pomp_looptijd op op het eeprom */
+	else;
+	(t_looptijd) = 0;
+
+/* te doen sla z_pomp_looptijd op op het eeprom */
+
 }
 
 /**
@@ -80,17 +290,20 @@ void f_eeprom_looptijd (const int * a_pomp_active,long int * z_pomp_looptijd,int
  * 
  */
 
-void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
+void f_eeprom_looptijd (void)
 {
-	if (*(s_pomp_active+0) = 1)
+/* haal z_pomp_inschakelingen op uit het eeprom */	
+
+	if ((s_pomp_active+0) = 1)
 	{
-	*(z_pomp_inschakelingen+0)++
+		(z_pomp_inschakelingen+0)++
 	} 
-	if (*(s_pomp_active+1) = 1)
+	if ((s_pomp_active+1) = 1)
 	{
-	*(z_pomp_inschakelingen+1)++
+		(z_pomp_inschakelingen+1)++
 	}
 		else;
+
 /* sla z_pomp_inschakelingen op op het eeprom */
 }
 
@@ -101,11 +314,11 @@ void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
  * s_hoogwateralarm hoogwater alarm
  */
 
-void f_hoogwater_alarm (const int * s_hoogwater,int * a_hoogwateralarm)
+void f_hoogwater_alarm (void)
 {
-	if (*(s_hoogwater) = 1)
+	if ((s_hoogwater) = 1)
 	{
-	*(a_hoogwateralarm) = 1
+		(a_hoogwateralarm) = 1
 	} 
 }
 
@@ -117,9 +330,9 @@ void f_hoogwater_alarm (const int * s_hoogwater,int * a_hoogwateralarm)
  * 
  */
 
-void f_reset_hoogwater_alarm (int * s_hoogwateralarm)
+void f_reset_hoogwater_alarm (void)
 {
-	*(a_hoogwateralarm) = 0 
+	(a_hoogwateralarm) = 0 
 }
 
 
