@@ -73,10 +73,10 @@ unsigned int c_idnummer; /*	id nummer van de pomp	uINT(0-65000) */
 	Prefix: s_
 */
 
-int s_pomp_active[2]; /* Pomp actief/in bedrijf	Bool (1=active) */
-int s_pomp_error[2]; /* Pomp in storing?	Bool (1=active)*/ 
-int s_hoogwateralarm	/*Hoogwatermelding*/ 
-int s_error; /* Algemene foutmelding	Bool (1=active) */
-int s_standby; /* Standby melding	Bool (1=active) */
+int a_pomp_active[2]; /* Pomp actief/in bedrijf	Bool (1=active) */
+int a_pomp_error[2]; /* Pomp in storing?	Bool (1=active)*/ 
+int a_hoogwateralarm	/*Hoogwatermelding*/ 
+int a_error; /* Algemene foutmelding	Bool (1=active) */
+int a_standby; /* Standby melding	Bool (1=active) */
 
 
