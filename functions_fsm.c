@@ -13,16 +13,9 @@
 
 void f_stop_pomp(int * a_pomp_active) 
 {
-<<<<<<< HEAD
-	/* f_eeprom_looptijd; */
-	*(s_pomp_active+0) = 0;
-	*(s_pomp_active+1) = 0;
-=======
-	f_eeprom_looptijd;
+	/* f_eeprom_looptijd(); */
 	*(a_pomp_active+0) = 0;
 	*(a_pomp_active+1) = 0;
->>>>>>> aece3b5f72de1d54e81513651e1e867d546c8112
-
 }
 
 /** 
@@ -37,22 +30,18 @@ void f_stop_pomp(int * a_pomp_active)
 void f_start_pomp(int * a_pomp_active,const long int * z_pomp_looptijd,int * t_looptijd,const int * s_pomp_error)
 {
 	*(t_looptijd) = 0; 
-			if (*(z_pomp_looptijd+0) <= *(z_pomp_looptijd+1) || (* s_pomp_error+1 < 1) && (* s_pomp_error+0 < 1))
+			if ((*(z_pomp_looptijd+0) <= *(z_pomp_looptijd+1)) || ((* s_pomp_error+1 < 1) && (* s_pomp_error+0 < 1)))
 			{
 				*(a_pomp_active+0) = 1;
 			}								/*start pomp 1*/
-			if (*(z_pomp_looptijd+0) > *(z_pomp_looptijd+1) || (* s_pomp_error+0 < 1) && (* s_pomp_error+1 < 1))
+			if ((*(z_pomp_looptijd+0) > *(z_pomp_looptijd+1)) || ((* s_pomp_error+0 < 1) && (* s_pomp_error+1 < 1)))
 			{
 				*(a_pomp_active+1) = 1;	
 			}								/*start pomp 2*/
 				else;  /*allebij in error, geen pomp start*/
-<<<<<<< HEAD
-	/* f_eeprom_inschakelingen */
-=======
-	f_eeprom_inschakelingen
+/*	f_eeprom_inschakelingen(); */
 }
 
->>>>>>> aece3b5f72de1d54e81513651e1e867d546c8112
 	  /* er moet nog een functie start timer gemaakt worden */
 	/* f_starttimer (maakt gebruik van hardware timer's en interupts*/
 
@@ -69,11 +58,11 @@ void f_start_pomp(int * a_pomp_active,const long int * z_pomp_looptijd,int * t_l
 
 void f_eeprom_looptijd (const int * a_pomp_active,long int * z_pomp_looptijd,int * t_looptijd)
 {	
-	if (*(a_pomp_active+0) = 1 && *(t_looptijd) > 0)
+	if ((*(a_pomp_active+0) == 1) && (*(t_looptijd) > 0))
 	{
 	*(z_pomp_looptijd+0) = *(t_looptijd+0) + *(z_pomp_looptijd+0); 
 	}
-	if (*(a_pomp_active+1) = 1 && *(t_looptijd) > 0)
+	if ((*(a_pomp_active+1) == 1) && (*(t_looptijd) > 0))
 	{	
 	*(z_pomp_looptijd+1) = *(t_looptijd) + *(z_pomp_looptijd+1); 
 	}
@@ -84,21 +73,20 @@ void f_eeprom_looptijd (const int * a_pomp_active,long int * z_pomp_looptijd,int
 
 /**
  *functie f_eeprom_inschakelingen onthoud het aantal inschakelingen 
- * t_looptijd huidige looptijd actieve pomp
  * z_pomp_inschakelingen array looptijden van bijde pompen
  * s_pomp_error array van actieve pompen
  * 
  */
 
-void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
+void f_eeprom_inschakelingen (const int * s_pomp_active, int * z_pomp_inschakelingen)
 {
-	if (*(s_pomp_active+0) = 1)
+	if (*(s_pomp_active+0) == 1)
 	{
-	*(z_pomp_inschakelingen+0)++
+	(*(z_pomp_inschakelingen+0))++;
 	} 
-	if (*(s_pomp_active+1) = 1)
+	if (*(s_pomp_active+1) == 1)
 	{
-	*(z_pomp_inschakelingen+1)++
+	(*(z_pomp_inschakelingen+1))++;
 	}
 		else;
 /* sla z_pomp_inschakelingen op op het eeprom */
@@ -113,9 +101,9 @@ void f_eeprom_looptijd (const int * s_pomp_active,int * z_pomp_inschakelingen)
 
 void f_hoogwater_alarm (const int * s_hoogwater,int * a_hoogwateralarm)
 {
-	if (*(s_hoogwater) = 1)
+	if (*(s_hoogwater) == 1)
 	{
-	*(a_hoogwateralarm) = 1
+	*(a_hoogwateralarm) = 1;
 	} 
 }
 
@@ -127,9 +115,9 @@ void f_hoogwater_alarm (const int * s_hoogwater,int * a_hoogwateralarm)
  * 
  */
 
-void f_reset_hoogwater_alarm (int * s_hoogwateralarm)
+void f_reset_hoogwater_alarm (int * a_hoogwateralarm)
 {
-	*(a_hoogwateralarm) = 0 
+	*(a_hoogwateralarm) = 0; 
 }
 
 
@@ -139,24 +127,26 @@ void f_reset_hoogwater_alarm (int * s_hoogwateralarm)
  * 
  */
 
-void f_start_nadraaitimer (/*???????*/)
+/*
+void f_start_nadraaitimer (void)
 {
 	// eerst de timer resetten	
 	// hier moet de timer gestart worden
 }
-
+*/
 
 /**
  *functie f_start_nadraai2timer start eerste nadraaitimer
  * 
  */
 
-void f_start_nadraai2timer (/*???????*/)
+/*
+void f_start_nadraai2timer (void)
 {
 	// eerst de timer resetten	
 	// hier moet de timer gestart worden
 }
-
+*/
 
 
 
