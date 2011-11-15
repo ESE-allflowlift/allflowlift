@@ -79,7 +79,7 @@ unsigned int c_nivo_onderste; /* Onderste inschakelnivo	uINT (in cm) */
 unsigned int c_nivo_uitschakel;	/* UItschakelnivo	CONST uINT (4 mA) */
 unsigned int c_nadraai; /*	Nadraaitijd	uINT (3-10 sec)	t_nadraai (sec) */
 unsigned int c_nadraai2; /*	Nadraaitijd bij hoogwatersensor	uINT (tot 90sec)	t_nadraaitijd2 */
-/* int c_looptijd;  Maximale looptijd	uINT (10-15 min)	t_looptijd (min) */
+unsigned int c_looptijd;  /* Maximale looptijd	uINT (10-15 min)	t_looptijd (min) */
 unsigned int c_idnummer; /*	id nummer van de pomp	uINT(0-65000) */
 
 /*
@@ -105,11 +105,59 @@ void setvars_shiftregister(void) {
 	b_cursor_right = shift[14]; // Pin 3 (2)
 	
 }
-	uint16_t EEMEM eeprom_looptijd;
 
-int main(void) {	
+uint16_t EEMEM eeprom_z_pomp_looptijd_1;
+uint16_t EEMEM eeprom_z_pomp_looptijd_2;
+uint16_t EEMEM eeprom_z_pomp_inschakelingen_1;
+uint16_t EEMEM eeprom_z_pomp_inschakelingen_2;
 
-	uint16_t c_looptijd = eeprom_read_word(&eeprom_looptijd);
+uint8_t EEMEM eeprom_c_nivo_bovenste;
+uint8_t EEMEM eeprom_c_nivo_onderste; 
+uint8_t EEMEM eeprom_c_nivo_uitschakel;	
+uint8_t EEMEM eeprom_c_nadraai; 
+uint8_t EEMEM eeprom_c_nadraai2; 
+uint8_t EEMEM eeprom_c_looptijd; 
+uint8_t EEMEM eeprom_c_idnummer; 
+
+void setvars_from_eeprom(void) {
+	z_pomp_looptijd[0] = eeprom_read_word(&eeprom_z_pomp_looptijd_1);
+	z_pomp_looptijd[1] = eeprom_read_word(&eeprom_z_pomp_looptijd_2);
+	z_pomp_inschakelingen[0] = eeprom_read_word(&eeprom_z_pomp_inschakelingen_1);
+	z_pomp_inschakelingen[1] = eeprom_read_word(&eeprom_z_pomp_inschakelingen_2);
+
+	c_nivo_bovenste = eeprom_read_byte(&eeprom_c_nivo_bovenste);
+	c_nivo_onderste = eeprom_read_byte(&eeprom_c_nivo_onderste);
+	c_nivo_uitschakel = eeprom_read_byte(&eeprom_c_nivo_uitschakel);
+	c_nadraai = eeprom_read_byte(&eeprom_c_nadraai);
+	c_nadraai2 = eeprom_read_byte(&eeprom_c_nadraai2);
+	c_looptijd = eeprom_read_byte(&eeprom_c_looptijd);
+	c_idnummer = eeprom_read_byte(&eeprom_c_idnummer);
+}
+
+void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * custom_var, int * custom_temp, int min_val, int max_val, char * derde_regel, int * e_event_code, char * e_display_buffer_1, char * e_display_buffer_2) {
+	strcpy (e_display_buffer_1, tweede_regel);
+	*e_event_code = event_code_i;
+
+	char tempstring[2];
+	int tempint = *custom_var + *custom_temp;
+						
+	if (tempint > max_val) {
+		*custom_temp = max_val - *custom_var;
+		tempint = c_nivo_bovenste + *custom_temp;
+	}
+	if (tempint < min_val) {
+		*custom_temp = min_val - *custom_var;
+		tempint = *custom_var + *custom_temp;
+	}
+
+	itoa(tempint, tempstring, 10); // Convert integer to ascii with radix 10
+	strcpy (e_display_buffer_2, derde_regel);
+	strcpy (e_display_buffer_2+strlen(derde_regel), tempstring);
+}
+
+int main(void) {
+
+	setvars_from_eeprom();
 
 	_delay_ms (10);
 	display_init();
@@ -121,14 +169,16 @@ int main(void) {
 	display_line("======= ES1V2 ======",3);
 	_delay_ms (1000);
 
-	char display_buffer[80]; //
+	char display_buffer[86]; //
 	char * display_buffer_line[4];
-	display_buffer_line[0] = (char *) &display_buffer + 0;
-	display_buffer_line[1] = (char *) &display_buffer + 20;
-	display_buffer_line[2] = (char *) &display_buffer + 40;
-	display_buffer_line[3] = (char *) &display_buffer + 60;
+	display_buffer_line[0] = (char *) &display_buffer;
+	display_buffer_line[1] = (char *) &display_buffer + 21;
+	display_buffer_line[2] = (char *) &display_buffer + 43;
+	display_buffer_line[3] = (char *) &display_buffer + 65;
 
 	int event_submenuC = 0; //Simuleer event van submenu C naar submenu B (EEPROM SAVE)
+	int event_code = 0; //Event code voor afhandeling
+
 	int cursor_stateA = 0; //State machine 1e regel
 	int cursor_stateB = 0; //State machine 2e regel
 	int cursor_stateC = 0; //State machine 3e regel //Niet nodig?
@@ -138,13 +188,28 @@ int main(void) {
 
 	while (1) {
 		setvars_shiftregister(); // Set vars via shiftregister (sensors & bedieing)
+		
+		if (event_submenuC == 1) { // Process event
+			event_submenuC = 0;
+			switch (event_code) {
+				case 100:
+					eeprom_write_byte(&eeprom_c_looptijd, (c_looptijd + cursor_stateC_temp));
+				break;
+				case 101:
+					eeprom_write_byte(&eeprom_c_nivo_bovenste, (c_nivo_bovenste + cursor_stateC_temp));
+				break;
+			}
+		}
+		display_line(display_buffer_line[0],0);
+		display_line(display_buffer_line[1],1);
+		display_line(display_buffer_line[2],2);
 
 		// Cursor en knipper state machine
 		switch (affect_state)
 		{
 			case 'A':
 				display_line("                    ", 0);
-				_delay_ms(100);
+				_delay_ms(10);
 				display_line(display_buffer_line[0],0);
 				if (b_cursor_right != 0) 
 				{
@@ -157,7 +222,7 @@ int main(void) {
 			break;
 			case 'B':
 				display_line("                    ", 1);
-				_delay_ms(100);				
+				_delay_ms(10);
 				display_line(display_buffer_line[1],1);
 				if (b_cursor_right != 0) 
 				{
@@ -170,7 +235,7 @@ int main(void) {
 			break;
 			case 'C':
 				display_line("                    ", 2);
-				_delay_ms(100);				
+				_delay_ms(10);
 				display_line(display_buffer_line[2],2);
 				if (b_cursor_right != 0) 
 				{
@@ -180,20 +245,23 @@ int main(void) {
 				{
 					cursor_stateC_temp--;
 				}
-				break;
+			break;
 		}
 
 		if (b_cursor_down != 0)
 		{
 			affect_state++;
-			if (affect_state == 'C') { cursor_stateC_temp = 0; } //Reset alleen van submenu B naar submenu C 
+			if (affect_state == 'C') { 
+				setvars_from_eeprom(); // Lees eeprom waardes als naar het derde submenu word gesprongen
+			}
 		}
 		if (b_cursor_up != 0)
 		{
 			affect_state--;
-			if (affect_state == 'B') { event_submenuC = 1; } //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
-			// Later door event afhandelen:
-			eeprom_write_word(&eeprom_looptijd, (uint16_t) (c_looptijd + cursor_stateC_temp));
+			if (affect_state == 'B') { 
+				cursor_stateC_temp = 0; // Reset van submenu C naar submenu B
+				event_submenuC = 1; //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
+			}
 		}
 
 		if (affect_state > 'C') { affect_state = 'C'; }
@@ -211,38 +279,37 @@ int main(void) {
 				if (cursor_stateB < 0) { cursor_stateB = 0; }		
 				switch (cursor_stateB)
 				{
-					case 0: // Looptijd bij vloeistofsesnro
+					case 0: // Looptijd bij vloeistofsensor
 						strcpy (display_buffer_line[1], "  Loopt. vl. sens. >");
 
+						event_code = 100;
 						char tempstring[2];
 						int tempint = c_looptijd + cursor_stateC_temp;
+						
+						if (tempint > 90) {
+							cursor_stateC_temp = 90 - c_looptijd;
+							tempint = c_looptijd + cursor_stateC_temp;
+						}
+
 						itoa(tempint, tempstring, 10);
 						strcpy (display_buffer_line[2], "Sec. (max 90): ");
 						strcpy (display_buffer_line[2]+15, tempstring);
 					break;
-					case 1: // Bovenste inschakelnivo
-						strcpy (display_buffer_line[1], "< Bov. insch. nivo >");
-					break;
-					case 2: // Bovenste inschakelnivo
-						strcpy (display_buffer_line[1], "<    Nadraaitijd   >");
-					break;
-					case 3: // Bovenste inschakelnivo
-						strcpy (display_buffer_line[1], "<   Max. looptijd  >");
-					break;
-					case 4: // Bovenste inschakelnivo
-						strcpy (display_buffer_line[1], "< Ond. insch. nivo  ");
+					case 1: // bovenste inschakelnivo
+						derde_regel_instellingen ("< Bov. insch. nivo >", 101, (uint8_t*) &c_nivo_bovenste, &cursor_stateC_temp, 30, 35, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
 					break;
 				}
 			break;
-			case 1: // <Storingsmeldingen> menu
+			case 1: // Storingsmeldingen menu
 				strcpy (display_buffer_line[0], "   < Storingen >    ");
+				strcpy (display_buffer_line[1], "   < Storingen >    ");
+				strcpy (display_buffer_line[2], "   < Storingen >    ");
 			break;
 			case 2: // Logs menu
 				strcpy (display_buffer_line[0], "       < Logs       ");
 			break;
 		}
 		
-
 		_delay_ms(300);
 	}
 
