@@ -4,7 +4,6 @@
  */
 
 
-#ifndef f
 
 
 /** 
@@ -15,27 +14,25 @@
 
 void fsm_motoren (void)
 {
-
+	
 	switch  (statehoog)
 	{
-		case 1: /*check hoogwater*/			
-			if (f_hoogwater = 0)
+		case 1: /* check hoogwater */
+			if (f_hoogwater == 0)
 			{
-					statemachine_normaal;
-				statehoog = 1; 
-					f_reset_hoogwater_alarm;
-			}			
-			if (f_hoogwater != 0)
+				fsm_normaal;
+				f_reset_hoogwater_alarm;
+			}
+			else
 			{
-				statehoog = 2 ;	
-					f_hoogwater_alarm;
-					f_start_pomp;		
-					f_start_nadraai2timer;
-				statenormaal = 0 ;
+				statehoog = 2;
+				a_hoogwateralarm = 1; //f_hoogwater_alarm;
+				f_start_pomp;
+				f_start_nadraai2timer;
+				statenormaal = 0;
 			}			
 		break;
 		
-
 		case 2: /* hoogwater */		
 			if (b_reset[0] = 1 || b_reset[1] = 1)
 			{
@@ -359,7 +356,6 @@ void f_start_nadraai2timer (void)
 
 
 
-#endif
 
 
 

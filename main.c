@@ -3,77 +3,48 @@
 #include <avr/eeprom.h>
 #include <avr/io.h>
 #include <util/delay.h>
-#include <string.h>
-#include <stdlib.h>
+#include <string.h> // Voor strlen()
+#include <stdlib.h> // Voor itoa()
 
 #include "display.h"
 #include "shiftin.h"
-
-/*
-*/
-
-/** \file variables.h
- * Alle variabelen welke de fucties aanroepen/bewerken
- * 
- */
+#include "pin_driver.h"
+#include "timer.h"
 
 #define TRUE 1
 #define FALSE 0
 
-/* 
-	Error Variables test randy 123
-	Prefix: e_
 
-*/
-
-
+// Error vars
 int e_nivo_breuk = FALSE; /* Nivosensor voelerbreuk P1	Bool Active 1 */
 int e_nivo_kortsluiting = FALSE; /* Nivosensor kortsluiting	Bool Active 1 */
 int e_motor_fase[2] = {FALSE, FALSE}; /* Motorfase verkeerd (per pomp)	Array Bool Active 1 */
 int e_motor_stroom[2] = {FALSE, FALSE}; /* Motorstroom te hoog (per pomp)	Array Bool Active 1 */
 int e_motor_temp[2] = {FALSE, FALSE}; /* Motortemp te hoog	Array Bool Active 1 */
 
-/* 
-	Log variables
-	Prefix: z_
-*/
-
+// Log vars
 /* Te doen: initializatie halen uit EEPROM  */
 /* Te doen: rekening houden met looptijd, 65000 minuten is te kort */
-
 uint16_t z_pomp_looptijd[2]; /* Totale looptijd per pomp (in min.)	double (1-65000) */
 uint16_t z_pomp_inschakelingen[2]; /* Totaal aantal inschakelingen per pomp	uINT (0-255) */
 
-/*
-	Sensor variables (input)
-	Prefix: s_
-*/
-
+// Sensor vars (input)
 int s_nivo;	/* Waarde nivosensor	uINT (0-1023) */
-int s_motorPower[2];/* Motor Overbelast	Bool Active 1 */
-int s_motorTemp[2]; /* Motor Oververhit	Bool Active 1 */
-int s_motorFase[2]; /* Motor Fase verkeerd	Bool Active 0 (Of 1?) */
+int s_motor_stroom[2];/* Motor Overbelast	Bool Active 1 */
+int s_motor_temp[2]; /* Motor Oververhit	Bool Active 1 */
+int s_motor_fase[2]; /* Motor Fase verkeerd	Bool Active 0 (Of 1?) */
 int s_hoogwater; /*Hoogwater melding	Bool Active 1 */
 
-/*
-	Bediening variables (input)
-	Prefix: b_
-*/
-
-int b_handAuto[2]; /* 2x Handmatig of automatische stand (per pomp)	Array Bool
-0=auto 1=hand */
-int b_inschakelingHand[2]; /* 2x	Inschakeling hand (per pomp) Array Bool Active 1 */
+// Bediening vars (input)
+int b_hand_auto[2]; /* 2x Handmatig of automatische stand (per pomp) */
+int b_inschakeling_hand[2]; /* 2x	Inschakeling hand (per pomp) Array Bool Active 1 */
 int b_reset[2]; /* 2x Reset (per pomp) Array Bool Active 1  waneer de reset knop ingedrukt wordt moet deze hoog worden, hij word na bijv 1 seconden weer laag */
 int b_cursor_up; /*	cursur knoppen	array bool active1 */
 int b_cursor_down; /* cursur knoppen	array bool active1 */
 int b_cursor_left;	/* cursur knoppen	array bool active1 */
 int b_cursor_right; /*	cursur knoppen	array bool active1 */
 
-/*
-	Custom variables (input)
-	Prefix: c_
-*/
-
+// Custom variables (input)
 unsigned int c_nivo_bovenste; /* Bovenste inschakelnivo	uINT (in cm) */
 unsigned int c_nivo_onderste; /* Onderste inschakelnivo	uINT (in cm) */
 unsigned int c_nivo_uitschakel;	/* UItschakelnivo	CONST uINT (4 mA) */
@@ -82,30 +53,14 @@ unsigned int c_nadraai_hoogwater; /*	Nadraaitijd bij hoogwatersensor	uINT (tot 9
 unsigned int c_looptijd;  /* Maximale looptijd	uINT (10-15 min)	t_looptijd (min) */
 unsigned int c_idnummer; /*	id nummer van de pomp	uINT(0-65000) */
 
-/*
-	Set variables (Output/Actuator)
-	Prefix: a_
-*/
-
+// Set variables (Output/Actuator)
 int a_pomp_active[2]; /* Pomp actief/in bedrijf	Bool (1=active) */
 int a_pomp_error[2]; /* Pomp in storing?	Bool (1=active) */
 int a_error; /* Algemene foutmelding	Bool (1=active) */
 int a_standby; /* Standby melding	Bool (1=active) */
 int a_hoogwateralarm; /*  */
 
-
-
-void setvars_shiftregister(void) {
-	int shift[17];
-	shiftregister_read(&shift[0], 2);
-
-	b_cursor_up = shift[1]; // Pin 12 (1)
-	b_cursor_down = shift[0]; // Pin 14 (1)
-	b_cursor_left = shift[15]; // Pin 2 (2)
-	b_cursor_right = shift[14]; // Pin 3 (2)
-	
-}
-
+// EEPROM aliases
 uint16_t EEMEM eeprom_z_pomp_looptijd_1;
 uint16_t EEMEM eeprom_z_pomp_looptijd_2;
 uint16_t EEMEM eeprom_z_pomp_inschakelingen_1;
@@ -134,6 +89,31 @@ void setvars_from_eeprom(void) {
 	c_idnummer = eeprom_read_byte(&eeprom_c_idnummer);
 }
 
+void setvars_shiftregister(void) {
+	int shift[17];
+	shiftregister_read(&shift[0], 2);
+
+	// Shift register 1
+	b_cursor_down = shift[0]; // Pin 14 (1)
+	b_cursor_up = shift[1]; // Pin 12 (1)
+	b_reset[1] = shift[2]; // Pin 11 (1)
+	b_inschakeling_hand[1] = shift[3]; // Pin 10 (1)
+	b_hand_auto[1] = shift[4]; // Pin 5 (1)
+	b_reset[0] = shift[5]; // Pin 4 (1)
+	b_inschakeling_hand[0] = shift[6]; // Pin 3 (1)
+	b_hand_auto[0] = shift[7]; // Pin 2 (1)
+
+	// Shift register 2
+	s_motor_temp[1] = shift[8]; // Pin 14 (2)
+	s_motor_stroom[1] = shift[9]; // Pin 12 (2)
+	s_motor_fase[1] = shift[10]; // Pin 11 (2)
+	s_motor_temp[0] = shift[11]; // Pin 10 (2)
+	s_motor_stroom[0] = shift[12]; // Pin 5 (2)
+	s_motor_fase[0] = shift[13]; // Pin 4 (2)
+	b_cursor_right = shift[14]; // Pin 3 (2)
+	b_cursor_left = shift[15]; // Pin 2 (2)
+}
+
 void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * custom_var, int * custom_temp, int min_val, int max_val, char * derde_regel, int * e_event_code, char * e_display_buffer_1, char * e_display_buffer_2) {
 	strcpy (e_display_buffer_1, tweede_regel);
 	*e_event_code = event_code_i;
@@ -155,21 +135,91 @@ void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * 
 	strcpy (e_display_buffer_2+strlen(derde_regel), tempstring);
 }
 
+void setvars_actuators(void) {
+	if (a_pomp_active[0] == 1) 
+	{
+		pindriver_setpin("C", PC1, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC1, 0);
+	}
+	
+	if (a_pomp_active[1] == 1) 
+	{
+		pindriver_setpin("C", PC2, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC2, 0);
+	}
+
+	if (a_pomp_error[0] == 1) 
+	{
+		pindriver_setpin("C", PC3, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC3, 0);
+	}
+
+	if (a_pomp_error[1] == 1) 
+	{
+		pindriver_setpin("C", PC4, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC4, 0);
+	}
+
+	if (a_hoogwateralarm == 1) 
+	{
+		pindriver_setpin("C", PC5, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC5, 0);
+	}
+
+	if (a_error == 1) 
+	{
+		pindriver_setpin("C", PC6, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC6, 0);
+	}
+
+	if (a_standby == 1) 
+	{
+		pindriver_setpin("C", PC7, 1);
+	} 
+	else 
+	{
+		pindriver_setpin("C", PC7, 0);
+	}
+}
+
 int main(void) {
 
-	setvars_from_eeprom();
+	// Init
+	setvars_from_eeprom(); // Load vars from eeprom into globals
+	pindriver_init(); // Init pin driver
+	timerdriver_init(); // Init timer driver
 
-	_delay_ms (10);
-	display_init();
-	shiftregister_init();
+	// Init external peripheral
+	_delay_ms (10); // Safeguard
+	display_init(); // Init display driver
+	shiftregister_init(); // Init shiftregister driver
 
+	// Welcome message
 	display_line("====================",0);
 	display_line("Project Allflowlift ",1);
 	display_line("Firmware version 0.1",2);
 	display_line("======= ES1V2 ======",3);
 	_delay_ms (1000);
 
-
+	// Init vars
 	char display_buffer[86]; // 86 voor elke \0 terminator
 	char * display_buffer_line[4];
 	display_buffer_line[0] = (char *) &display_buffer;
@@ -184,13 +234,14 @@ int main(void) {
 
 	int cursor_stateA = 0; //State machine 1e regel
 	int cursor_stateB = 0; //State machine 2e regel
-	int cursor_stateC = 0; //State machine 3e regel //Niet nodig?
-	int cursor_stateD = 0; //Niet nodig?
 	char affect_state = 'A'; //Cursor state machine
 	int cursor_stateC_temp = 0; 
 
+	// Infinite loop
 	while (1) {
-		setvars_shiftregister(); // Set vars via shiftregister (sensors & bedieing)
+
+		setvars_actuators(); // Set actuators according to globals
+		setvars_shiftregister(); // Set globals  from input
 		
 		if (event_submenuC == 1) { // Process event
 			event_submenuC = 0; // Reset event
@@ -249,10 +300,12 @@ int main(void) {
 				if (b_cursor_right != 0) 
 				{
 					cursor_stateB++;
+					setvars_from_eeprom(); // Lees eeprom waardes 
 				}
 				if (b_cursor_left != 0) 
 				{
 					cursor_stateB--;
+					setvars_from_eeprom(); // Lees eeprom waardes 
 				}
 			break;
 			case 'C':
@@ -418,6 +471,12 @@ int main(void) {
 		}
 		
 		_delay_ms(10);
+
+
+
+
+
+
 	}
 
 }
