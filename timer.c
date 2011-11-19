@@ -8,16 +8,17 @@ extern int t_nadraai_hoogwater;
 extern int t_looptijd;
 
 int compare_matches = 0; // Number of compare matches
+int compare_matches_in_one_second;
 
 void timerdriver_init (void) {
 	sei(); // Enable global interrupts
 
-	int cpu_clock = 8000000; // CPU frequentie in Hz
+	double cpu_clock = 8000000; // CPU frequentie in Hz
 	int prescaler = 1024; // Timer prescaler
 	int compare_value = 255; // Timer compare register
 
 	float compare_match_every = ((1/cpu_clock) / prescaler) * compare_value; // In seconds
-	int compare_matches_in_one_second = 1 / compare_match_every;
+	compare_matches_in_one_second = 1 / compare_match_every;
 
 	TCNT0 = 0x00; // Initial TCNT0 value
 	OCR0 = compare_value; // Compare register
@@ -33,7 +34,7 @@ void timerdriver_init (void) {
 ISR (TIMER0_COMP_vect) {
 	TCNT0 = 0x00; // Force clear
 	compare_matches++; // Count compare matches
-	if (compare_matches => compare_matches_in_one_second) // One second has passed (include margin for error)
+	if (compare_matches >= compare_matches_in_one_second) // One second has passed (include margin for error)
 	{
 		compare_matches = 0; // Reset compare matches
 		t_nadraai++;

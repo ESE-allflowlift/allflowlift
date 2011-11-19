@@ -212,10 +212,10 @@ void f_stop_pomp(void)
 {
 	// Check welke pomp in bedrijf 
 	if (a_pomp_active[0] != 0) { // Pomp 1 in bedrijf
-		eeprom_write_word(eeprom_z_pomp_looptijd_1, z_pomp_looptijd[0] + t_looptijd);
+		eeprom_write_word(&eeprom_z_pomp_looptijd_1, z_pomp_looptijd[0] + t_looptijd);
 		a_pomp_active[0] = 0; // Zet pomp 1 uit
 	} else if (a_pomp_active[1] != 0) { // Pomp 2 in bedrijf
-		eeprom_write_word(eeprom_z_pomp_looptijd_2, z_pomp_looptijd[1] + t_looptijd);
+		eeprom_write_word(&eeprom_z_pomp_looptijd_2, z_pomp_looptijd[1] + t_looptijd);
 		a_pomp_active[1] = 0; // Zet pomp 2 uit
 	}
 }
@@ -230,7 +230,7 @@ void f_start_pomp(void)
 		if (a_pomp_error[0] == 0) { // Pomp 1 niet in error
 			a_pomp_active[0] = 1;
 			t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
-			eeprom_write_word(eeprom_z_pomp_inschakelingen_1, z_pomp_inschakelingen[0] + 1);
+			eeprom_write_word(&eeprom_z_pomp_inschakelingen_1, z_pomp_inschakelingen[0] + 1);
 		}
 	}
 	else // Pomp 2 heeft minste gelopen
@@ -238,7 +238,7 @@ void f_start_pomp(void)
 		if (a_pomp_error[1] == 0) { // Pomp 2 niet in error
 			a_pomp_active[1] = 1;
 			t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
-			eeprom_write_word(eeprom_z_pomp_inschakelingen_2, z_pomp_inschakelingen[1] + 1);
+			eeprom_write_word(&eeprom_z_pomp_inschakelingen_2, z_pomp_inschakelingen[1] + 1);
 		}
 	}
 }
@@ -257,12 +257,12 @@ void f_pomp_seterror(void) {
 	}
 
 	// Als een pomp een van de drie storingen heeft, a_pomp_error setten
-	if ((e_motor_fase[0] != 0) || (e_motor_stroom[0] != 0) || (e_motor_temp[0] != 0)) {
+	if ((s_motor_fase[0] != 0) || (s_motor_stroom[0] != 0) || (s_motor_temp[0] != 0)) {
 		a_pomp_error[0] = 1;
 		a_error = 1; // Set algemene foutmelding
 		a_standby = 0;
 	}
-	if ((e_motor_fase[1] != 0) || (e_motor_stroom[1] != 0) || (e_motor_temp[1] != 0)) {
+	if ((s_motor_fase[1] != 0) || (s_motor_stroom[1] != 0) || (s_motor_temp[1] != 0)) {
 		a_pomp_error[1] = 1;
 		a_error = 1;
 		a_standby = 0;
@@ -326,7 +326,7 @@ int main(void) {
 		f_pomp_seterror(); // Zet pompen in error als dat nodig is
 		setvars_actuators(); // Set actuators according to globals
 		setvars_shiftregister(); // Set globals  from input
-		read_adc(); // Read ADC s_nivo
+		adc_read(); // Read ADC s_nivo
 		
 		if (event_submenuC == 1) { // Process event
 			event_submenuC = 0; // Reset event
@@ -690,6 +690,7 @@ int main(void) {
 				t_nadraai_hoogwater = 0; // Start nadraai hoogwater timer
 			}
 		break;
+	}
 	}	
 }
 
