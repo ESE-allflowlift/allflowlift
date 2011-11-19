@@ -10,6 +10,7 @@
 #include "shiftin.h"
 #include "pin_driver.h"
 #include "timer.h"
+#include "adc.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -18,9 +19,9 @@
 // Error vars
 int e_nivo_breuk = FALSE; /* Nivosensor voelerbreuk P1	Bool Active 1 */
 int e_nivo_kortsluiting = FALSE; /* Nivosensor kortsluiting	Bool Active 1 */
-int e_motor_fase[2] = {FALSE, FALSE}; /* Motorfase verkeerd (per pomp)	Array Bool Active 1 */
-int e_motor_stroom[2] = {FALSE, FALSE}; /* Motorstroom te hoog (per pomp)	Array Bool Active 1 */
-int e_motor_temp[2] = {FALSE, FALSE}; /* Motortemp te hoog	Array Bool Active 1 */
+//int e_motor_fase[2] = {FALSE, FALSE}; /* Motorfase verkeerd (per pomp)	Array Bool Active 1 */
+//int e_motor_stroom[2] = {FALSE, FALSE}; /* Motorstroom te hoog (per pomp)	Array Bool Active 1 */
+//int e_motor_temp[2] = {FALSE, FALSE}; /* Motortemp te hoog	Array Bool Active 1 */
 
 // Log vars
 /* Te doen: initializatie halen uit EEPROM  */
@@ -52,6 +53,10 @@ unsigned int c_nadraai; /*	Nadraaitijd	uINT (3-10 sec)	t_nadraai (sec) */
 unsigned int c_nadraai_hoogwater; /*	Nadraaitijd bij hoogwatersensor	uINT (tot 90sec)	t_nadraaitijd2 */
 unsigned int c_looptijd;  /* Maximale looptijd	uINT (10-15 min)	t_looptijd (min) */
 unsigned int c_idnummer; /*	id nummer van de pomp	uINT(0-65000) */
+
+int t_nadraai;
+int t_nadraai_hoogwater;
+int t_looptijd;
 
 // Set variables (Output/Actuator)
 int a_pomp_active[2]; /* Pomp actief/in bedrijf	Bool (1=active) */
@@ -200,12 +205,87 @@ void setvars_actuators(void) {
 	}
 }
 
+/** 
+ * functie stop pomp 
+ */
+void f_stop_pomp(void) 
+{
+	// Check welke pomp in bedrijf 
+	if (a_pomp_active[0] != 0) { // Pomp 1 in bedrijf
+		eeprom_write_word(eeprom_z_pomp_looptijd_1, z_pomp_looptijd[0] + t_looptijd);
+		a_pomp_active[0] = 0; // Zet pomp 1 uit
+	} else if (a_pomp_active[1] != 0) { // Pomp 2 in bedrijf
+		eeprom_write_word(eeprom_z_pomp_looptijd_2, z_pomp_looptijd[1] + t_looptijd);
+		a_pomp_active[1] = 0; // Zet pomp 2 uit
+	}
+}
+
+/** 
+ * functie start pomp 
+ */
+void f_start_pomp(void)
+{
+	// Start pomp welke niet in storing is en minste looptijd. Als allebei in error, geen pomp starten
+	if (z_pomp_looptijd[0] < z_pomp_looptijd[1]) { // Pomp 1 heeft minste gelopen
+		if (a_pomp_error[0] == 0) { // Pomp 1 niet in error
+			a_pomp_active[0] = 1;
+			t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
+			eeprom_write_word(eeprom_z_pomp_inschakelingen_1, z_pomp_inschakelingen[0] + 1);
+		}
+	}
+	else // Pomp 2 heeft minste gelopen
+	{
+		if (a_pomp_error[1] == 0) { // Pomp 2 niet in error
+			a_pomp_active[1] = 1;
+			t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
+			eeprom_write_word(eeprom_z_pomp_inschakelingen_2, z_pomp_inschakelingen[1] + 1);
+		}
+	}
+}
+
+void f_pomp_seterror(void) {
+	// Alleen een reset mag de storing per pomp laten verwijderen
+	if (b_reset[0] != 0) {
+		a_pomp_error[0] = 0;
+		a_error = 0; // Reset algemene foutmelding
+		a_standby = 1;
+	}
+	if (b_reset[1] != 0) {
+		a_pomp_error[1] = 0;
+		a_error = 0;
+		a_standby = 1;
+	}
+
+	// Als een pomp een van de drie storingen heeft, a_pomp_error setten
+	if ((e_motor_fase[0] != 0) || (e_motor_stroom[0] != 0) || (e_motor_temp[0] != 0)) {
+		a_pomp_error[0] = 1;
+		a_error = 1; // Set algemene foutmelding
+		a_standby = 0;
+	}
+	if ((e_motor_fase[1] != 0) || (e_motor_stroom[1] != 0) || (e_motor_temp[1] != 0)) {
+		a_pomp_error[1] = 1;
+		a_error = 1;
+		a_standby = 0;
+	}
+}
+
+/**
+ *functie f_pomp_seterror zet pomp in error als dat nodig is 
+ * @param a_pomp_error	array van pomp in error
+ * @param e_motor_fase array motor fase verkeerd
+ * @param e_motor_stroom array motor stroom verkeerd
+ * @param e_motor_temp array motor tempratuur verkeerd
+ * @param b_handauto array motor op handmatig
+ * @param b_reset array van resetknoppen
+ */
+
 int main(void) {
 
 	// Init
 	setvars_from_eeprom(); // Load vars from eeprom into globals
 	pindriver_init(); // Init pin driver
 	timerdriver_init(); // Init timer driver
+	adc_init(); // Init ADC
 
 	// Init external peripheral
 	_delay_ms (10); // Safeguard
@@ -243,8 +323,10 @@ int main(void) {
 	// Infinite loop
 	while (1) {
 
+		f_pomp_seterror(); // Zet pompen in error als dat nodig is
 		setvars_actuators(); // Set actuators according to globals
 		setvars_shiftregister(); // Set globals  from input
+		read_adc(); // Read ADC s_nivo
 		
 		if (event_submenuC == 1) { // Process event
 			event_submenuC = 0; // Reset event
@@ -502,10 +584,9 @@ int main(void) {
 						if (s_nivo <= c_nivo_uitschakel)
 						{
 							statenormaal = 3;
-							f_start_nadraaiTimer;
+							t_nadraai = 0; // Start nadraaitimer
 						}
-// s_pomp_error ?
-						if (s_pomp_error != 0) 
+						if (a_error != 0) 
 						{
 							statenormaal = 4;
 							f_stop_pomp;
@@ -513,13 +594,12 @@ int main(void) {
 					break;
 
 					case 3:	/*pomp nadraai*/
-						if (t_nadraai > c_nadraai)
+						if (t_nadraai > (c_nadraai * 60))
 						{
 							statenormaal = 1;
 							f_stop_pomp;
 						}
-// s_pomp_error ?
-						if (s_pomp_error != 0) 
+						if (a_error != 0) 
 						{
 							statenormaal = 4;
 							f_stop_pomp;
@@ -563,22 +643,21 @@ int main(void) {
 				statehoog = 2;
 				a_hoogwateralarm = 1; //s_hoogwater_alarm;
 				f_start_pomp;
-				f_start_nadraai_hoogwatertimer;
+				t_nadraai_hoogwater = 0; // Start nadraai hoogwater timer
 			}			
 		break;
 
 		case 2: /* hoogwater */		
-			if (b_reset[0] == 1 || b_reset[1] == 1)
+			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;
 			}
-			if (t_nadraai_hoogwater > c_nadraai_hoogwater)	
+			if (t_nadraai_hoogwater > (c_nadraai_hoogwater * 60))	
 			{
 				statehoog = 4;
 				f_stop_pomp;
 			}
-// Waarom ?
-			if (s_pomp_error == 1)
+			if (a_error != 0)
 			{
 				statehoog = 3;
 				f_stop_pomp;
@@ -586,13 +665,12 @@ int main(void) {
 			}
 		break;
 
-// Waaorm ?
 		case 3: /*pomp restart*/		
-			if (b_reset[0] == 1 || b_reset[1] == 1)
+			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;	
 			}
-			if (t_nadraai_hoogwater > c_nadraai_hoogwater)
+			if (t_nadraai_hoogwater > (c_nadraai_hoogwater * 60))
 			{
 				statehoog = 4;
 				f_stop_pomp;
@@ -600,154 +678,19 @@ int main(void) {
 		break;
 
 		case 4: /*pomp uit*/		
-			if (b_reset[0] == 1 ||b_reset[1] == 1)
+			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;	
 			}
-			if (s_hoogwater == 1)
+			if (s_hoogwater != 0)
 			{
 				statehoog = 2;
 				a_hoogwateralarm = 1;
 				f_start_pomp;		
-				f_start_nadraai_hoogwatertimer;
+				t_nadraai_hoogwater = 0; // Start nadraai hoogwater timer
 			}
 		break;
 	}	
 }
 
-
-/** 
- * functie stop pomp 
- * @param a_pomp_active array van actieve pompen
- */
-void f_stop_pomp(void) 
-{
-	f_eeprom_looptijd;
-	(a_pomp_active+0) = 0;
-	(a_pomp_active+1) = 0;
-}
-
-/** 
- * functie start pomp 
- * @param start alleen een pomp zonder error, degene met de minste draai uren
- * @param a_pomp_active array van actieve pompen
- * @param z_pomp_looptijd array met looptijden van beide pompen
- * @param t_looptijd timer van maximale looptijd van de pomp
- * @param s_pomp_error staat er een pomp in error
- */
-
-void f_start_pomp(void)
-{
-	(t_looptijd) = 0; 
-			if ((z_pomp_looptijd+0) <= (z_pomp_looptijd+1) || (s_pomp_error+1 < 1) && (s_pomp_error+0 < 1))
-			if ((z_pomp_looptijd+0) > (z_pomp_looptijd+1) || (s_pomp_error+0 < 1) && (s_pomp_error+1 < 1))
-			{
-				(a_pomp_active+1) = 1;	
-			}								/*start pomp 2*/
-				else;  /*allebij in error, geen pomp start*/
-	f_eeprom_inschakelingen
-}
-
-
-/* er moet nog een functie start timer gemaakt worden */
-/* f_starttimer (maakt gebruik van hardware timer's en interupts*/
-
-/**
- *functie f_eeprom_looptijd onthoud de loop tijden
- * @param t_looptijd huidige looptijd actieve pomp
- * @param z_pomp_looptijd looptijden van bijde pompen
- * @param s_pomp_error array van actieve pompen
- * @param a_pomp_active welke pomp loopt
- */
-void f_eeprom_looptijd (void)
-{	
-/* te doen haal z_pomp_looptijd op uit het eeprom */
-
-	if ((a_pomp_active+0) = 1 && (t_looptijd) > 0)
-	if ((*(a_pomp_active+1) == 1) && (*(t_looptijd) > 0))
-	if ((a_pomp_active+1) = 1 && (t_looptijd) > 0)
-	{	
-		(z_pomp_looptijd+1) = (t_looptijd) + (z_pomp_looptijd+1); 
-	}
-	else;
-	(t_looptijd) = 0;
-
-	/* te doen sla z_pomp_looptijd op op het eeprom */
-}
-
-/**
- *functie f_eeprom_inschakelingen onthoud het aantal inschakelingen 
- * z_pomp_inschakelingen array looptijden van bijde pompen
- * s_pomp_error array van actieve pompen
- * 
- */
-void f_eeprom_inschakelingen (void)
-{
-/* haal z_pomp_inschakelingen op uit het eeprom */	
-
-	if ((s_pomp_active+0) = 1)
-	{
-		(z_pomp_inschakelingen+0)++
-	} 
-	if ((s_pomp_active+1) = 1)
-	{
-		(z_pomp_inschakelingen+1)++
-	}
-		else;
-
-/* sla z_pomp_inschakelingen op op het eeprom */
-}
-
-
-/**
- *functie s_hoogwater_alarm set hoogwateralarm
- * s_hoogwater hoogwater gedetecteerd
- * s_hoogwateralarm hoogwater alarm
- */
-
-void s_hoogwater_alarm (void)
-{
-	if ((s_hoogwater) = 1)
-	{
-		(a_hoogwateralarm) = 1
-	} 
-}
-
-/**
- *functie f_start_nadraaitimer start eerste nadraaitimer
- * 
- */
-
-/*
-void f_start_nadraaitimer (void)
-{
-	// eerst de timer resetten	
-	// hier moet de timer gestart worden
-}
-*/
-
-/**
- *functie f_start_nadraai_hoogwatertimer start eerste nadraaitimer
- * 
- */
-
-/*
-void f_start_nadraai_hoogwatertimer (void)
-{
-	// eerst de timer resetten	
-	// hier moet de timer gestart worden
-}
-*/
-
-
-
-/**
- *functie f_pomp_seterror zet pomp in error als dat nodig is 
- * @param s_pomp_error	array van pomp in error
- * @param e_motor_fase array motor fase verkeerd
- * @param e_motor_stroom array motor stroom verkeerd
- * @param e_motor_temp array motor tempratuur verkeerd
- * @param b_handauto array motor op handmatig
- * @param b_reset array van resetknoppen
- */
 
