@@ -1,7 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include "pin_driver.h"
+//#include "pin_driver.h"
 
 extern int t_nadraai;
 extern int t_nadraai_hoogwater;
@@ -17,7 +17,7 @@ void timerdriver_init (void) {
 	int prescaler = 1024; // Timer prescaler
 	int compare_value = 255; // Timer compare register
 
-	float compare_match_every = ((1/cpu_clock) / prescaler) * compare_value; // In seconds
+	float compare_match_every = ((1/cpu_clock) * prescaler) * compare_value; // In seconds
 	compare_matches_in_one_second = 1 / compare_match_every;
 
 	TCNT0 = 0x00; // Initial TCNT0 value
