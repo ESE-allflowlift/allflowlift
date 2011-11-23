@@ -16,14 +16,26 @@
 #define TRUE 1
 #define FALSE 0
 
+#define NIVO_BREUK 20
+#define NIVO_KORTSLUITING 980
+
+
+/*
+	-looptijd implementeren
+	-nivosensor storing
+	-opslaan laatste foutmeldingn
+	-
+*/
+
+char temp_p1[4];
+char temp_p2[4];
+char temp_error[6];
+
 int prevent_infinity = 0; // Voorkom oneindige lus tussen f_start_pomp_1 en _2 !
 
 // Error vars
 int e_nivo_breuk = FALSE; /* Nivosensor voelerbreuk P1	Bool Active 1 */
 int e_nivo_kortsluiting = FALSE; /* Nivosensor kortsluiting	Bool Active 1 */
-//int e_motor_fase[2] = {FALSE, FALSE}; /* Motorfase verkeerd (per pomp)	Array Bool Active 1 */
-//int e_motor_stroom[2] = {FALSE, FALSE}; /* Motorstroom te hoog (per pomp)	Array Bool Active 1 */
-//int e_motor_temp[2] = {FALSE, FALSE}; /* Motortemp te hoog	Array Bool Active 1 */
 
 // Log vars
 /* Te doen: initializatie halen uit EEPROM  */
@@ -96,9 +108,12 @@ void setvars_from_eeprom(void) {
 	c_idnummer = eeprom_read_byte(&eeprom_c_idnummer);
 }
 
+int b_cursor_down_last = 0;
+
 void setvars_shiftregister(void) {
 	int shift[17];
 	shiftregister_read(&shift[0], 2);
+
 
 	// Shift register 1
 	b_cursor_down = shift[0]; // Pin 14 (1)
@@ -121,6 +136,20 @@ void setvars_shiftregister(void) {
 	b_cursor_left = shift[15]; // Pin 2 (2)
 
 	s_hoogwater = (PINA & (1 << PA1)) && 1;
+
+	if (b_cursor_down == 1) 
+	{
+		if (b_cursor_down_last == 0)
+		{
+			b_cursor_down_last == 1;
+		}
+		else
+		{
+			
+		}
+	}
+	
+
 }
 
 void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * custom_var, int * custom_temp, int min_val, int max_val, char * derde_regel, int * e_event_code, char * e_display_buffer_1, char * e_display_buffer_2) {
@@ -345,6 +374,8 @@ void f_pomp_seterror(void) {
 	{
 		a_standby = 1;
 	}
+
+
 }
 
 /**
@@ -356,6 +387,40 @@ void f_pomp_seterror(void) {
  * @param b_handauto array motor op handmatig
  * @param b_reset array van resetknoppen
  */
+
+
+
+void f_update_status_vars(void) 
+{
+	if (a_pomp_active[0] != 0) 
+	{
+		strcpy (temp_p1, "aan");
+	}
+	else
+	{
+		strcpy (temp_p1, "uit");
+	}
+
+	if (a_pomp_active[1] != 0) 
+	{
+		strcpy (temp_p2, "aan");
+	}
+	else
+	{
+		strcpy (temp_p2, "uit");
+	}
+
+	if (a_error != 0)
+	{
+		strcpy (temp_error, "ja");
+	}
+	else
+	{
+		strcpy (temp_error, "geen");
+	}
+}
+
+
 
 int main(void) {
 
@@ -378,7 +443,7 @@ int main(void) {
 	display_line("Project Allflowlift ",1);
 	display_line("Firmware version 0.1",2);
 	display_line("======= ES1V2 ======",3);
-	_delay_ms (1000);
+	_delay_ms (3000);
 
 	// Init vars
 	char display_buffer[86]; // 86 voor elke \0 terminator
@@ -387,8 +452,6 @@ int main(void) {
 	display_buffer_line[1] = (char *) &display_buffer + 21;
 	display_buffer_line[2] = (char *) &display_buffer + 43;
 	display_buffer_line[3] = (char *) &display_buffer + 65;
-
-//	strcpy(display_buffer_line[3], "P1:aan P2:uit E:geen");
 
 	int event_submenuC = 0; //Simuleer event van submenu C naar submenu B (EEPROM SAVE)
 	int event_code = 0; //Event code voor afhandeling
@@ -401,35 +464,43 @@ int main(void) {
 	int statehoog = 1;
 	int statenormaal = 1;
 
-		char temp_nivo[4];
-		char temp_statehoog[4];
-		char temp_statenormaal[4];
-		char temp_misc[4];
-
 	// Infinite loop
-	while (1) {
-
-		itoa(c_nadraai, temp_misc, 10);
-		itoa(s_nivo, temp_nivo, 10);
-		itoa(statehoog, temp_statehoog, 10);
-		itoa(statenormaal, temp_statenormaal, 10);
-
-		sprintf(display_buffer_line[3], "%s - %s - %s : %d", temp_nivo, temp_statehoog, temp_statenormaal, t_nadraai);
-		
-//		strcpy (display_buffer_line[3], (char *) temp_nivo);
-//		strcpy (display_buffer_line[3]+5, (char *) temp_statehoog);
-//		strcpy (display_buffer_line[3]+8, (char *) temp_statenormaal);
-
-
+	while (1) 
+	{
 		f_pomp_handmatig(); // Handmatige besturing pompen
 		f_pomp_seterror(); // Zet pompen in error als dat nodig is
 		setvars_actuators(); // Set actuators according to globals
 		setvars_shiftregister(); // Set globals  from input
+
 		adc_read(); // Read ADC s_nivo
+		if (NIVO_BREUK > s_nivo) // Nivo breuk
+		{
+			e_nivo_breuk = TRUE;
+			e_nivo_kortsluiting = FALSE;
+		} 
+		else if (NIVO_KORTSLUITING < s_nivo) // Nivo kortsluiting
+		{ 
+			e_nivo_kortsluiting = TRUE;
+			e_nivo_breuk = FALSE;
+		}
+		else // Reset breuk en kortsluiting
+		{
+			e_nivo_breuk = FALSE;
+			e_nivo_kortsluiting = FALSE;
+		}
+
+
+		f_update_status_vars();
+
+		sprintf(display_buffer_line[3], "P1:%s P2:%s E:%s", temp_p1, temp_p2, temp_error);
+
 		
-		if (event_submenuC == 1) { // Process event
+		
+		if (event_submenuC == 1) // Process event
+		{
 			event_submenuC = 0; // Reset event
-			switch (event_code) { // Process event code
+			switch (event_code) // Process event code
+			{
 				case 100:
 					eeprom_write_byte(&eeprom_c_looptijd, (c_looptijd + cursor_stateC_temp));
 				break;
@@ -584,13 +655,12 @@ int main(void) {
 						strcpy (display_buffer_line[1], "< Pomp 2 specifiek  ");
 					break;
 				}
-
 			break;
 			case 2: // Logs menu
 				strcpy (display_buffer_line[0], "       < Logs       ");
 
 				// Submenu B Boundary
-				if (cursor_stateB > 1) { cursor_stateB = 1; }
+				if (cursor_stateB > 2) { cursor_stateB = 2; }
 				if (cursor_stateB < 0) { cursor_stateB = 0; }		
 				switch (cursor_stateB)
 				{
@@ -618,7 +688,7 @@ int main(void) {
 					break;
 					case 1: // Pomp 2
 					{
-						strcpy (display_buffer_line[1], "     < Pomp 2       ");
+						strcpy (display_buffer_line[1], "     < Pomp 2 >     ");
 
 						// Submenu C Boundary
 						if (cursor_stateC_temp > 1) { cursor_stateC_temp = 1; }
@@ -636,6 +706,13 @@ int main(void) {
 							}
 							break;
 						}
+					}
+					break;
+					case 2: // state machine status
+					{
+						strcpy (display_buffer_line[1], "<     FSM Status    ");
+
+						sprintf(display_buffer_line[2], "N:%d SH:%d SN:%d T:%d", s_nivo, statehoog, statenormaal, t_nadraai);
 					}
 					break;
 				}
@@ -691,7 +768,7 @@ int main(void) {
 							statenormaal = 4;
 							f_stop_pomp();
 						}
-						break;
+					break;
 
 					case 4:	/*pomp in error*/
 						if (s_nivo < c_nivo_onderste)
@@ -719,6 +796,11 @@ int main(void) {
 							statenormaal = 1;
 							f_stop_pomp();
 						}
+						if (a_error != 0) 
+						{
+							statenormaal = 4;
+							f_stop_pomp();
+						}
 					break;
 				}
 				///////////////////
@@ -738,6 +820,8 @@ int main(void) {
 			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;
+				statenormaal = 1;
+				f_stop_pomp();
 			}
 			if (t_nadraai_hoogwater > (c_nadraai_hoogwater)) // * 60	
 			{
@@ -748,6 +832,7 @@ int main(void) {
 			{
 				statehoog = 3;
 				f_stop_pomp();
+				t_nadraai_hoogwater = 0; // Start nadraai hoogwater timer
 				f_start_pomp();
 			}
 		break;
@@ -756,8 +841,10 @@ int main(void) {
 			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;	
+				statenormaal = 1;
+				f_stop_pomp();
 			}
-			if (t_nadraai_hoogwater > (c_nadraai_hoogwater * 60))
+			if (t_nadraai_hoogwater > (c_nadraai_hoogwater)) // * 60
 			{
 				statehoog = 4;
 				f_stop_pomp();
@@ -768,6 +855,8 @@ int main(void) {
 			if (b_reset[0] != 0 || b_reset[1] != 0)
 			{
 				statehoog = 1;	
+				statenormaal = 1;
+				f_stop_pomp();
 			}
 			if (s_hoogwater != 0)
 			{
