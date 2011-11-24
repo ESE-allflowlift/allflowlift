@@ -19,13 +19,30 @@
 #define NIVO_BREUK 20
 #define NIVO_KORTSLUITING 980
 
+///////////////////////////////////////////////////////////////////////
 
 /*
+Legenda:
+	- te doen
+	* mee bezig
+	X af
+
+TODO
 	-looptijd implementeren
-	-nivosensor storing
-	-opslaan laatste foutmeldingn
-	-
+	*nivosensor storing
+	*opslaan laatste foutmeldingn
+	-Storingen menu
+	-Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
+	*Cursor duidelijker huidig menu
+	*Polling fix
+	-Pompen omstebeurt
+	-Pomp knippert bij error in state normaal (state 4 naar 6)
+	-Nivo error state (hoog?)
+
+	-Serial protocol
 */
+
+///////////////////////////////////////////////////////////////////////
 
 char temp_p1[4];
 char temp_p2[4];
@@ -114,6 +131,7 @@ void setvars_shiftregister(void) {
 	int shift[17];
 	shiftregister_read(&shift[0], 2);
 
+	b_cursor_down_last = b_cursor_down;
 
 	// Shift register 1
 	b_cursor_down = shift[0]; // Pin 14 (1)
@@ -137,19 +155,10 @@ void setvars_shiftregister(void) {
 
 	s_hoogwater = (PINA & (1 << PA1)) && 1;
 
-	if (b_cursor_down == 1) 
+	if (b_cursor_down == TRUE && b_cursor_down_last == TRUE) // Nu up, vorige keer up
 	{
-		if (b_cursor_down_last == 0)
-		{
-			b_cursor_down_last == 1;
-		}
-		else
-		{
-			
-		}
+		b_cursor_down = 0;
 	}
-	
-
 }
 
 void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * custom_var, int * custom_temp, int min_val, int max_val, char * derde_regel, int * e_event_code, char * e_display_buffer_1, char * e_display_buffer_2) {
@@ -174,7 +183,7 @@ void derde_regel_instellingen (char * tweede_regel, int event_code_i, uint8_t * 
 }
 
 void setvars_actuators(void) {
-	if (a_pomp_active[0] != 0) 
+	if (a_pomp_active[0] == TRUE) 
 	{
 		pindriver_setpin("C", PC1, 1);
 	} 
@@ -183,7 +192,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC1, 0);
 	}
 	
-	if (a_pomp_active[1] != 0) 
+	if (a_pomp_active[1] == TRUE) 
 	{
 		pindriver_setpin("C", PC2, 1);
 	} 
@@ -192,7 +201,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC2, 0);
 	}
 
-	if (a_pomp_error[0] != 0) 
+	if (a_pomp_error[0] == TRUE) 
 	{
 		pindriver_setpin("C", PC3, 1);
 	} 
@@ -201,7 +210,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC3, 0);
 	}
 
-	if (a_pomp_error[1] != 0) 
+	if (a_pomp_error[1] == TRUE) 
 	{
 		pindriver_setpin("C", PC4, 1);
 	} 
@@ -210,7 +219,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC4, 0);
 	}
 
-	if (a_hoogwateralarm != 0) 
+	if (a_hoogwateralarm == TRUE) 
 	{
 		pindriver_setpin("C", PC5, 1);
 	} 
@@ -219,7 +228,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC5, 0);
 	}
 
-	if (a_error != 0) 
+	if (a_error == TRUE) 
 	{
 		pindriver_setpin("C", PC6, 1);
 	} 
@@ -228,7 +237,7 @@ void setvars_actuators(void) {
 		pindriver_setpin("C", PC6, 0);
 	}
 
-	if (a_standby != 0) 
+	if (a_standby == TRUE) 
 	{
 		pindriver_setpin("C", PC7, 1);
 	} 
@@ -244,12 +253,12 @@ void setvars_actuators(void) {
 void f_stop_pomp(void) 
 {
 	// Check welke pomp in bedrijf 
-	if (a_pomp_active[0] != 0) // Pomp 1 in bedrijf
+	if (a_pomp_active[0] == TRUE) // Pomp 1 in bedrijf
 	{
 		eeprom_write_word(&eeprom_z_pomp_looptijd_1, z_pomp_looptijd[0] + t_looptijd);
 		a_pomp_active[0] = 0; // Zet pomp 1 uit
 	} 
-	if (a_pomp_active[1] != 0)  // Pomp 2 in bedrijf
+	if (a_pomp_active[1] == TRUE)  // Pomp 2 in bedrijf
 	{
 		eeprom_write_word(&eeprom_z_pomp_looptijd_2, z_pomp_looptijd[1] + t_looptijd);
 		a_pomp_active[1] = 0; // Zet pomp 2 uit
@@ -262,7 +271,7 @@ void f_start_pomp_1(void)
 {
 	prevent_infinity++;
 
-	if (a_pomp_error[0] == 0 && b_hand_auto[0] == 0) // Pomp 1 niet in error en pomp 1 in auto stand
+	if (a_pomp_error[0] == FALSE && b_hand_auto[0] == FALSE) // Pomp 1 niet in error en pomp 1 in auto stand
 	{
 		a_pomp_active[0] = 1;
 		t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
@@ -281,7 +290,7 @@ void f_start_pomp_2(void)
 {
 	prevent_infinity++;
 
-	if (a_pomp_error[1] == 0 && b_hand_auto[1] == 0) // Pomp 2 niet in error en pomp 2 in auto stand
+	if (a_pomp_error[1] == FALSE && b_hand_auto[1] == FALSE) // Pomp 2 niet in error en pomp 2 in auto stand
 	{
 		a_pomp_active[1] = 1;
 		t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
@@ -319,9 +328,9 @@ void f_start_pomp(void)
  */
 void f_pomp_handmatig(void) 
 {
-	if (b_hand_auto[0] != 0) // Pomp 1 in handmatig stand
+	if (b_hand_auto[0] == TRUE) // Pomp 1 in handmatig stand
 	{
-		if (b_inschakeling_hand[0] == 0) // Pomp 1 uit
+		if (b_inschakeling_hand[0] == FALSE) // Pomp 1 uit
 		{
 			a_pomp_active[0] = 0;
 		} 
@@ -330,9 +339,9 @@ void f_pomp_handmatig(void)
 			a_pomp_active[0] = 1;
 		}
 	}
-	if (b_hand_auto[1] != 0) // Pomp 2 in handmatig stand
+	if (b_hand_auto[1] == TRUE) // Pomp 2 in handmatig stand
 	{
-		if (b_inschakeling_hand[1] == 0) // Pomp 2 uit
+		if (b_inschakeling_hand[1] == FALSE) // Pomp 2 uit
 		{
 			a_pomp_active[1] = 0;
 		} 
@@ -345,37 +354,35 @@ void f_pomp_handmatig(void)
 
 void f_pomp_seterror(void) {
 	// Alleen een reset mag de storing per pomp laten verwijderen
-	if (b_reset[0] != 0) 
+	if (b_reset[0] == TRUE) 
 	{
 		a_pomp_error[0] = 0;
 		a_error = 0; // Reset algemene foutmelding
 	}
-	if (b_reset[1] != 0) 
+	if (b_reset[1] == TRUE) 
 	{
 		a_pomp_error[1] = 0;
 		a_error = 0;
 	}
 
 	// Als een pomp een van de drie storingen heeft, a_pomp_error setten
-	if ((s_motor_fase[0] != 0) || (s_motor_stroom[0] != 0) || (s_motor_temp[0] != 0)) 
+	if ((s_motor_fase[0] == TRUE) || (s_motor_stroom[0] == TRUE) || (s_motor_temp[0] == TRUE)) 
 	{
 		a_pomp_error[0] = 1;
 		a_error = 1; // Set algemene foutmelding
 		a_standby = 0;
 	}
-	if ((s_motor_fase[1] != 0) || (s_motor_stroom[1] != 0) || (s_motor_temp[1] != 0))
+	if ((s_motor_fase[1] == TRUE) || (s_motor_stroom[1] == TRUE) || (s_motor_temp[1] == TRUE))
 	{
 		a_pomp_error[1] = 1;
 		a_error = 1;
 		a_standby = 0;
 	}
 
-	if (a_pomp_error[0] == 0 && a_pomp_error[1] == 0) // Standby melding als geen pomp in storing is
+	if (a_pomp_error[0] == FALSE && a_pomp_error[1] == FALSE) // Standby melding als geen pomp in storing is
 	{
 		a_standby = 1;
 	}
-
-
 }
 
 /**
@@ -392,7 +399,7 @@ void f_pomp_seterror(void) {
 
 void f_update_status_vars(void) 
 {
-	if (a_pomp_active[0] != 0) 
+	if (a_pomp_active[0] == TRUE) 
 	{
 		strcpy (temp_p1, "aan");
 	}
@@ -401,7 +408,7 @@ void f_update_status_vars(void)
 		strcpy (temp_p1, "uit");
 	}
 
-	if (a_pomp_active[1] != 0) 
+	if (a_pomp_active[1] == TRUE) 
 	{
 		strcpy (temp_p2, "aan");
 	}
@@ -410,7 +417,7 @@ void f_update_status_vars(void)
 		strcpy (temp_p2, "uit");
 	}
 
-	if (a_error != 0)
+	if (a_error == TRUE)
 	{
 		strcpy (temp_error, "ja");
 	}
@@ -420,7 +427,24 @@ void f_update_status_vars(void)
 	}
 }
 
-
+void s_nivo_set_breuk_kortsluiting(void)
+{
+	if (NIVO_BREUK > s_nivo) // Nivo breuk
+	{
+		e_nivo_breuk = TRUE;
+		e_nivo_kortsluiting = FALSE;
+	} 
+	else if (NIVO_KORTSLUITING < s_nivo) // Nivo kortsluiting
+	{ 
+		e_nivo_kortsluiting = TRUE;
+		e_nivo_breuk = FALSE;
+	}
+	else // Reset breuk en kortsluiting
+	{
+		e_nivo_breuk = FALSE;
+		e_nivo_kortsluiting = FALSE;
+	}
+}
 
 int main(void) {
 
@@ -473,28 +497,11 @@ int main(void) {
 		setvars_shiftregister(); // Set globals  from input
 
 		adc_read(); // Read ADC s_nivo
-		if (NIVO_BREUK > s_nivo) // Nivo breuk
-		{
-			e_nivo_breuk = TRUE;
-			e_nivo_kortsluiting = FALSE;
-		} 
-		else if (NIVO_KORTSLUITING < s_nivo) // Nivo kortsluiting
-		{ 
-			e_nivo_kortsluiting = TRUE;
-			e_nivo_breuk = FALSE;
-		}
-		else // Reset breuk en kortsluiting
-		{
-			e_nivo_breuk = FALSE;
-			e_nivo_kortsluiting = FALSE;
-		}
 
-
+		s_nivo_set_breuk_kortsluiting();
 		f_update_status_vars();
 
 		sprintf(display_buffer_line[3], "P1:%s P2:%s E:%s", temp_p1, temp_p2, temp_error);
-
-		
 		
 		if (event_submenuC == 1) // Process event
 		{
@@ -530,7 +537,6 @@ int main(void) {
 		display_line(display_buffer_line[1],1);
 		display_line(display_buffer_line[2],2);
 		display_line(display_buffer_line[3],3);
-		
 
 		// Cursor en knipper state machine
 		switch (affect_state)
@@ -539,11 +545,11 @@ int main(void) {
 				display_line("                    ", 0);
 				_delay_ms(10);
 				display_line(display_buffer_line[0],0);
-				if (b_cursor_right != 0) 
+				if (b_cursor_right == TRUE) 
 				{
 					cursor_stateA++;
 				}
-				if (b_cursor_left != 0) 
+				if (b_cursor_left == TRUE) 
 				{
 					cursor_stateA--;
 				}
@@ -552,12 +558,12 @@ int main(void) {
 				display_line("                    ", 1);
 				_delay_ms(10);
 				display_line(display_buffer_line[1],1);
-				if (b_cursor_right != 0) 
+				if (b_cursor_right == TRUE) 
 				{
 					cursor_stateB++;
 					setvars_from_eeprom(); // Lees eeprom waardes 
 				}
-				if (b_cursor_left != 0) 
+				if (b_cursor_left == TRUE) 
 				{
 					cursor_stateB--;
 					setvars_from_eeprom(); // Lees eeprom waardes 
@@ -567,25 +573,25 @@ int main(void) {
 				display_line("                    ", 2);
 				_delay_ms(10);
 				display_line(display_buffer_line[2],2);
-				if (b_cursor_right != 0) 
+				if (b_cursor_right == TRUE) 
 				{
 					cursor_stateC_temp++;
 				}
-				if (b_cursor_left != 0) 
+				if (b_cursor_left == TRUE) 
 				{
 					cursor_stateC_temp--;
 				}
 			break;
 		}
 
-		if (b_cursor_down != 0)
+		if (b_cursor_down == TRUE)
 		{
 			affect_state++;
 			if (affect_state == 'C') { 
 				cursor_stateC_temp = 0; // Reset van submenu B naar submenu C
 			}
 		}
-		if (b_cursor_up != 0)
+		if (b_cursor_up == TRUE)
 		{
 			affect_state--;
 			if (affect_state == 'B') { 
@@ -727,7 +733,7 @@ int main(void) {
 	switch  (statehoog)
 	{
 		case 1: /* check hoogwater */
-			if (s_hoogwater == 0)
+			if (s_hoogwater == FALSE)
 			{
 				a_hoogwateralarm = 0; /* reset hoogwater alarm */
 
@@ -750,7 +756,7 @@ int main(void) {
 							statenormaal = 3;
 							t_nadraai = 0; // Start nadraaitimer
 						}
-						if (a_error != 0) 
+						if (a_error == TRUE) 
 						{
 							statenormaal = 4;
 							f_stop_pomp();
@@ -763,7 +769,7 @@ int main(void) {
 							statenormaal = 1;
 							f_stop_pomp();
 						}
-						if (a_error != 0) 
+						if (a_error == TRUE) 
 						{
 							statenormaal = 4;
 							f_stop_pomp();
@@ -796,7 +802,7 @@ int main(void) {
 							statenormaal = 1;
 							f_stop_pomp();
 						}
-						if (a_error != 0) 
+						if (a_error == TRUE) 
 						{
 							statenormaal = 4;
 							f_stop_pomp();
@@ -807,7 +813,7 @@ int main(void) {
 				// End State normal
 				///////////////////
 			}
-			else /* hoogwater sensor != 0 */
+			else /* hoogwater sensor == TRUE */
 			{
 				statehoog = 2;
 				a_hoogwateralarm = 1; //s_hoogwater_alarm;
@@ -817,7 +823,7 @@ int main(void) {
 		break;
 
 		case 2: /* hoogwater */		
-			if (b_reset[0] != 0 || b_reset[1] != 0)
+			if (b_reset[0] == TRUE || b_reset[1] == TRUE)
 			{
 				statehoog = 1;
 				statenormaal = 1;
@@ -828,7 +834,7 @@ int main(void) {
 				statehoog = 4;
 				f_stop_pomp();
 			}
-			if (a_error != 0)
+			if (a_error == TRUE)
 			{
 				statehoog = 3;
 				f_stop_pomp();
@@ -838,7 +844,7 @@ int main(void) {
 		break;
 
 		case 3: /*pomp restart*/		
-			if (b_reset[0] != 0 || b_reset[1] != 0)
+			if (b_reset[0] == TRUE || b_reset[1] == TRUE)
 			{
 				statehoog = 1;	
 				statenormaal = 1;
@@ -852,13 +858,13 @@ int main(void) {
 		break;
 
 		case 4: /*pomp uit*/		
-			if (b_reset[0] != 0 || b_reset[1] != 0)
+			if (b_reset[0] == TRUE || b_reset[1] == TRUE)
 			{
 				statehoog = 1;	
 				statenormaal = 1;
 				f_stop_pomp();
 			}
-			if (s_hoogwater != 0)
+			if (s_hoogwater == TRUE)
 			{
 				statehoog = 2;
 				a_hoogwateralarm = 1;
