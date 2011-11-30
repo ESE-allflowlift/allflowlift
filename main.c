@@ -20,12 +20,30 @@
 #define NIVO_KORTSLUITING 980
 
 
+///////////////////////////////////////////////////////////////////////
 /*
-	-looptijd implementeren
-	-nivosensor storing
-	-opslaan laatste foutmeldingn
-	-
+
+Legenda:
+    - te doen
+    * mee bezig
+    X af
+
+TODO
+    -looptijd implementeren
+    *nivosensor storing
+    *opslaan laatste foutmeldingn
+    -Storingen menu
+    -Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
+    *Cursor duidelijker huidig menu
+    *Polling fix
+    -Pompen omstebeurt
+    -Pomp knippert bij error in state normaal (state 4 naar 6)
+    -Nivo error state (hoog?)
+
+    -Serial protocol
 */
+/////////////////////////////////////////////////////////////////////// 
+
 
 char temp_p1[4];
 char temp_p2[4];
@@ -443,7 +461,7 @@ int main(void) {
 	display_line("Project Allflowlift ",1);
 	display_line("Firmware version 0.1",2);
 	display_line("======= ES1V2 ======",3);
-	_delay_ms (3000);
+	_delay_ms (1000);
 
 	// Init vars
 	char display_buffer[86]; // 86 voor elke \0 terminator
