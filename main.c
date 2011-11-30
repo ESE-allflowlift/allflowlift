@@ -34,7 +34,7 @@ TODO
     *opslaan laatste foutmeldingn
     -Storingen menu
     -Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
-    *Cursor duidelijker huidig menu
+    XCursor duidelijker huidig menu
     *Polling fix
     -Pompen omstebeurt
     -Pomp knippert bij error in state normaal (state 4 naar 6)
@@ -43,6 +43,17 @@ TODO
     -Serial protocol
 */
 /////////////////////////////////////////////////////////////////////// 
+	int statehoog = 1;
+	int statenormaal = 1;
+
+	char display_buffer[86]; // 86 voor elke \0 terminator
+	char * display_buffer_line[4];
+
+	// +1 is nodig om sterretje (actieve regel) niet te wijzigen iedere loop
+	display_buffer_line[0] = (char *) &display_buffer + 1;
+	display_buffer_line[1] = (char *) &display_buffer + 21 + 1;
+	display_buffer_line[2] = (char *) &display_buffer + 43 + 1;
+	display_buffer_line[3] = (char *) &display_buffer + 65; // Hier niet nodig, 4e regel kan niet geselecteerd worden
 
 
 char temp_p1[4];
@@ -438,310 +449,32 @@ void f_update_status_vars(void)
 	}
 }
 
-
-
-int main(void) {
-
-	// Init
-	setvars_from_eeprom(); // Load vars from eeprom into globals
-	pindriver_init(); // Init pin driver
-	timerdriver_init(); // Init timer driver
-	adc_init(); // Init ADC
-
-	// Init PA1 (hoogwater)
-	DDRA &= ~(1 << PA1);
-
-	// Init external peripheral
-	_delay_ms (10); // Safeguard
-	display_init(); // Init display driver
-	shiftregister_init(); // Init shiftregister driver
-
-	// Welcome message
-	display_line("====================",0);
-	display_line("Project Allflowlift ",1);
-	display_line("Firmware version 0.1",2);
-	display_line("======= ES1V2 ======",3);
-	_delay_ms (1000);
-
-	// Init vars
-	char display_buffer[86]; // 86 voor elke \0 terminator
-	char * display_buffer_line[4];
-	display_buffer_line[0] = (char *) &display_buffer;
-	display_buffer_line[1] = (char *) &display_buffer + 21;
-	display_buffer_line[2] = (char *) &display_buffer + 43;
-	display_buffer_line[3] = (char *) &display_buffer + 65;
-
-	int event_submenuC = 0; //Simuleer event van submenu C naar submenu B (EEPROM SAVE)
-	int event_code = 0; //Event code voor afhandeling
-
-	int cursor_stateA = 0; //State machine 1e regel
-	int cursor_stateB = 0; //State machine 2e regel
-	char affect_state = 'A'; //Cursor state machine
-	int cursor_stateC_temp = 0; 
-
-	int statehoog = 1;
-	int statenormaal = 1;
-
-	// Infinite loop
-	while (1) 
+void state_machine(void)
+{
+	setvars_actuators(); // Set actuators according to globals
+	f_pomp_handmatig(); // Handmatige besturing pompen
+	adc_read(); // Read ADC s_nivo
+	if (NIVO_BREUK > s_nivo) // Nivo breuk
 	{
-		f_pomp_handmatig(); // Handmatige besturing pompen
-		f_pomp_seterror(); // Zet pompen in error als dat nodig is
-		setvars_actuators(); // Set actuators according to globals
-		setvars_shiftregister(); // Set globals  from input
+		e_nivo_breuk = TRUE;
+		e_nivo_kortsluiting = FALSE;
+	} 
+	else if (NIVO_KORTSLUITING < s_nivo) // Nivo kortsluiting
+	{ 
+		e_nivo_kortsluiting = TRUE;
+		e_nivo_breuk = FALSE;
+	}
+	else // Reset breuk en kortsluiting
+	{
+		e_nivo_breuk = FALSE;
+		e_nivo_kortsluiting = FALSE;
+	}
 
-		adc_read(); // Read ADC s_nivo
-		if (NIVO_BREUK > s_nivo) // Nivo breuk
-		{
-			e_nivo_breuk = TRUE;
-			e_nivo_kortsluiting = FALSE;
-		} 
-		else if (NIVO_KORTSLUITING < s_nivo) // Nivo kortsluiting
-		{ 
-			e_nivo_kortsluiting = TRUE;
-			e_nivo_breuk = FALSE;
-		}
-		else // Reset breuk en kortsluiting
-		{
-			e_nivo_breuk = FALSE;
-			e_nivo_kortsluiting = FALSE;
-		}
+	f_pomp_seterror(); // Zet pompen in error als dat nodig is
+	f_update_status_vars();
 
+	sprintf(display_buffer_line[3], "P1:%s P2:%s E:%s", temp_p1, temp_p2, temp_error);
 
-		f_update_status_vars();
-
-		sprintf(display_buffer_line[3], "P1:%s P2:%s E:%s", temp_p1, temp_p2, temp_error);
-
-		
-		
-		if (event_submenuC == 1) // Process event
-		{
-			event_submenuC = 0; // Reset event
-			switch (event_code) // Process event code
-			{
-				case 100:
-					eeprom_write_byte(&eeprom_c_looptijd, (c_looptijd + cursor_stateC_temp));
-				break;
-				case 101:
-					eeprom_write_byte(&eeprom_c_nivo_bovenste, (c_nivo_bovenste + cursor_stateC_temp));
-				break;
-				case 102:
-					eeprom_write_byte(&eeprom_c_nivo_onderste, (c_nivo_onderste + cursor_stateC_temp));
-				break;
-				case 103:
-					eeprom_write_byte(&eeprom_c_nivo_uitschakel, (c_nivo_uitschakel + cursor_stateC_temp));
-				break;
-				case 104:
-					eeprom_write_byte(&eeprom_c_nadraai, (c_nadraai + cursor_stateC_temp));
-				break;
-				case 105:
-					eeprom_write_byte(&eeprom_c_nadraai_hoogwater, (c_nadraai_hoogwater + cursor_stateC_temp));
-				break;
-				case 106:
-					eeprom_write_byte(&eeprom_c_idnummer, (c_idnummer + cursor_stateC_temp));
-				break;
-			}
-			setvars_from_eeprom(); // Lees eeprom waardes als men in het instellingen menu gaat
-			cursor_stateC_temp = 0; // Reset Temp var
-		}
-		display_line(display_buffer_line[0],0);
-		display_line(display_buffer_line[1],1);
-		display_line(display_buffer_line[2],2);
-		display_line(display_buffer_line[3],3);
-		
-
-		// Cursor en knipper state machine
-		switch (affect_state)
-		{
-			case 'A':
-				display_line("                    ", 0);
-				_delay_ms(10);
-				display_line(display_buffer_line[0],0);
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateA++;
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateA--;
-				}
-			break;
-			case 'B':
-				display_line("                    ", 1);
-				_delay_ms(10);
-				display_line(display_buffer_line[1],1);
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateB++;
-					setvars_from_eeprom(); // Lees eeprom waardes 
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateB--;
-					setvars_from_eeprom(); // Lees eeprom waardes 
-				}
-			break;
-			case 'C':
-				display_line("                    ", 2);
-				_delay_ms(10);
-				display_line(display_buffer_line[2],2);
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateC_temp++;
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateC_temp--;
-				}
-			break;
-		}
-
-		if (b_cursor_down != 0)
-		{
-			affect_state++;
-			if (affect_state == 'C') { 
-				cursor_stateC_temp = 0; // Reset van submenu B naar submenu C
-			}
-		}
-		if (b_cursor_up != 0)
-		{
-			affect_state--;
-			if (affect_state == 'B') { 
-				// cursor_stateC_temp hier niet resetten! anders word eeprom niet juist opgeslagen
-				event_submenuC = 1; //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
-			}
-		}
-
-		// Affect state boundary
-		if (affect_state > 'C') { affect_state = 'C'; }
-		if (affect_state < 'A') { affect_state = 'A'; }
-
-		// Print display state machine
-
-		// Main Menu Boundary
-		if (cursor_stateA > 2) { cursor_stateA = 2; }
-		if (cursor_stateA < 0) { cursor_stateA = 0; }
-		switch (cursor_stateA)
-		{
-			case 0: // Instellingen menu
-				strcpy (display_buffer_line[0], "   Instellingen >   ");
-
-				// Submenu B Boundary
-				if (cursor_stateB > 6) { cursor_stateB = 6; }
-				if (cursor_stateB < 0) { cursor_stateB = 0; }		
-				setvars_from_eeprom(); // Lees eeprom waardes als men in het instellingen menu gaat
-				switch (cursor_stateB)
-				{
-					case 0: // Looptijd bij vloeistofsensor
-						derde_regel_instellingen (" Loopt. vl. sens.  >", 100, (uint8_t*) &c_looptijd, &cursor_stateC_temp, 1, 90, "Sec. (1-90): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 1: // bovenste inschakelnivo
-						derde_regel_instellingen ("< Bov. insch. nivo >", 101, (uint8_t*) &c_nivo_bovenste, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 2: // onderste inschakelnivo
-						derde_regel_instellingen ("< Ond. insch. nivo >", 102, (uint8_t*) &c_nivo_onderste, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 3: // uitschakel nivo
-						derde_regel_instellingen ("< Uitschakel  nivo >", 103, (uint8_t*) &c_nivo_uitschakel, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 4: // nadraai inschakelnivo
-						derde_regel_instellingen ("< Nadraaitijd Pomp >", 104, (uint8_t*) &c_nadraai, &cursor_stateC_temp, 3, 10, "Sec. (3-10): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 5: // nadraai bij hoogwater inschakelnivo
-						derde_regel_instellingen ("< Nadraai. Hoogwa. >", 105, (uint8_t*) &c_nadraai_hoogwater, &cursor_stateC_temp, 1, 90, "Sec. (1-90): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					case 6: // Id nummer
-						derde_regel_instellingen ("< ID Nummer         ", 106, (uint8_t*) &c_idnummer, &cursor_stateC_temp, 0, 255, "ID (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
-					break;
-					}
-			break;
-			case 1: // Storingsmeldingen menu
-				strcpy (display_buffer_line[0], "   < Storingen >    ");
-
-				// Submenu B Boundary
-				if (cursor_stateB > 2) { cursor_stateB = 2; }
-				if (cursor_stateB < 0) { cursor_stateB = 0; }		
-				switch (cursor_stateB)
-				{
-					case 0: // Globale meldingen
-						strcpy (display_buffer_line[1], " Globale meldingen >");
-					break;
-					case 1: // Pomp 1 specifiek
-						strcpy (display_buffer_line[1], "< Pomp 1 specifiek >");
-					break;
-					case 2: // Globale meldingen
-						strcpy (display_buffer_line[1], "< Pomp 2 specifiek  ");
-					break;
-				}
-			break;
-			case 2: // Logs menu
-				strcpy (display_buffer_line[0], "       < Logs       ");
-
-				// Submenu B Boundary
-				if (cursor_stateB > 2) { cursor_stateB = 2; }
-				if (cursor_stateB < 0) { cursor_stateB = 0; }		
-				switch (cursor_stateB)
-				{
-					case 0: // Pomp 1
-					{
-						strcpy (display_buffer_line[1], "      Pomp 1 >      ");
-
-						// Submenu C Boundary
-						if (cursor_stateC_temp > 1) { cursor_stateC_temp = 1; }
-						if (cursor_stateC_temp < 0) { cursor_stateC_temp = 0; }		
-						switch (cursor_stateC_temp) 
-						{
-							case 0: // Looptijd
-							{
-								sprintf(display_buffer_line[2], "Looptijd: %d", z_pomp_looptijd[0]);
-							}
-							break;
-							case 1: // Aantal inschakelingen
-							{
-								sprintf(display_buffer_line[2], "Inschakel.: %d", z_pomp_inschakelingen[0]);
-							}
-							break;
-						}
-					}
-					break;
-					case 1: // Pomp 2
-					{
-						strcpy (display_buffer_line[1], "     < Pomp 2 >     ");
-
-						// Submenu C Boundary
-						if (cursor_stateC_temp > 1) { cursor_stateC_temp = 1; }
-						if (cursor_stateC_temp < 0) { cursor_stateC_temp = 0; }		
-						switch (cursor_stateC_temp) 
-						{
-							case 0: // Looptijd
-							{
-								sprintf(display_buffer_line[2], "Looptijd: %d", z_pomp_looptijd[1]);
-							}
-							break;
-							case 1: // Aantal inschakelingen
-							{
-								sprintf(display_buffer_line[2], "Inschakel.: %d", z_pomp_inschakelingen[1]);
-							}
-							break;
-						}
-					}
-					break;
-					case 2: // state machine status
-					{
-						strcpy (display_buffer_line[1], "<     FSM Status    ");
-
-						sprintf(display_buffer_line[2], "N:%d SH:%d SN:%d T:%d", s_nivo, statehoog, statenormaal, t_nadraai);
-					}
-					break;
-				}
-			break;
-		}
-		
-		_delay_ms(10);
-
-
-
-	
 	switch  (statehoog)
 	{
 		case 1: /* check hoogwater */
@@ -885,6 +618,309 @@ int main(void) {
 			}
 		break;
 	}
+
+
+
+}
+
+int main(void) {
+
+	// Init
+	setvars_from_eeprom(); // Load vars from eeprom into globals
+	pindriver_init(); // Init pin driver
+	timerdriver_init(); // Init timer driver
+	adc_init(); // Init ADC
+
+	// Init PA1 (hoogwater)
+	DDRA &= ~(1 << PA1);
+
+	// Init external peripheral
+	_delay_ms (10); // Safeguard
+	display_init(); // Init display driver
+	shiftregister_init(); // Init shiftregister driver
+
+	// Welcome message
+	display_line("====================",0);
+	display_line("Project Allflowlift ",1);
+	display_line("Firmware version 0.1",2);
+	display_line("======= ES1V2 ======",3);
+	_delay_ms (1000);
+
+	// Init vars
+	int event_submenuC = 0; //Simuleer event van submenu C naar submenu B (EEPROM SAVE)
+	int event_code = 0; //Event code voor afhandeling
+
+	int cursor_stateA = 0; //State machine 1e regel
+	int cursor_stateB = 0; //State machine 2e regel
+	char affect_state = 'A'; //Cursor state machine
+	int cursor_stateC_temp = 0; 
+
+
+	int count_state_routine;
+
+	// Infinite loop
+	while (1) 
+	{
+		setvars_shiftregister(); // Set globals  from input
+
+		count_state_routine++;
+		if (count_state_routine > 300)
+		{
+			count_state_routine = 0;
+			state_machine();
+		}
+
+		
+		if (event_submenuC == 1) // Process event
+		{
+			event_submenuC = 0; // Reset event
+			switch (event_code) // Process event code
+			{
+				case 100:
+					eeprom_write_byte(&eeprom_c_looptijd, (c_looptijd + cursor_stateC_temp));
+				break;
+				case 101:
+					eeprom_write_byte(&eeprom_c_nivo_bovenste, (c_nivo_bovenste + cursor_stateC_temp));
+				break;
+				case 102:
+					eeprom_write_byte(&eeprom_c_nivo_onderste, (c_nivo_onderste + cursor_stateC_temp));
+				break;
+				case 103:
+					eeprom_write_byte(&eeprom_c_nivo_uitschakel, (c_nivo_uitschakel + cursor_stateC_temp));
+				break;
+				case 104:
+					eeprom_write_byte(&eeprom_c_nadraai, (c_nadraai + cursor_stateC_temp));
+				break;
+				case 105:
+					eeprom_write_byte(&eeprom_c_nadraai_hoogwater, (c_nadraai_hoogwater + cursor_stateC_temp));
+				break;
+				case 106:
+					eeprom_write_byte(&eeprom_c_idnummer, (c_idnummer + cursor_stateC_temp));
+				break;
+			}
+			setvars_from_eeprom(); // Lees eeprom waardes als men in het instellingen menu gaat
+			cursor_stateC_temp = 0; // Reset Temp var
+		}
+		display_line(display_buffer_line[3],3);
+		
+
+		// Cursor en knipper state machine
+		switch (affect_state)
+		{
+			case 'A':
+				if (b_cursor_right != 0) 
+				{
+					cursor_stateA++;
+				}
+				if (b_cursor_left != 0) 
+				{
+					cursor_stateA--;
+				}
+
+				display_line(display_buffer_line[0]-1,0);
+				display_line(display_buffer_line[1]-1,1);
+				display_line(display_buffer_line[2]-1,2);
+			break;
+			case 'B':
+				if (b_cursor_right != 0) 
+				{
+					cursor_stateB++;
+					setvars_from_eeprom(); // Lees eeprom waardes 
+				}
+				if (b_cursor_left != 0) 
+				{
+					cursor_stateB--;
+					setvars_from_eeprom(); // Lees eeprom waardes 
+				}
+
+				display_line(display_buffer_line[1]-1,1);
+				display_line(display_buffer_line[2]-1,2);
+			break;
+			case 'C':
+				if (b_cursor_right != 0) 
+				{
+					cursor_stateC_temp++;
+				}
+				if (b_cursor_left != 0) 
+				{
+					cursor_stateC_temp--;
+				}
+
+				display_line(display_buffer_line[2]-1,2);
+			break;
+		}
+
+		if (b_cursor_down != 0)
+		{
+			affect_state++;
+			if (affect_state == 'C') 
+			{ 
+				cursor_stateC_temp = 0; // Reset van submenu B naar submenu C
+			}
+		}
+		if (b_cursor_up != 0)
+		{
+			affect_state--;
+			if (affect_state == 'B') { 
+				// cursor_stateC_temp hier niet resetten! anders word eeprom niet juist opgeslagen
+				event_submenuC = 1; //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
+			}
+		}
+
+		switch (affect_state)
+		{
+			case 'A':
+				*((char*)display_buffer_line[0]-1) = '*';
+				*(display_buffer_line[1]-1) = ' '; 
+				*(display_buffer_line[2]-1) = ' ';
+			break;
+			case 'B':
+				*(display_buffer_line[0]-1) = ' ';
+				*(display_buffer_line[1]-1) = '*'; 
+				*(display_buffer_line[2]-1) = ' ';
+
+				display_line(display_buffer_line[0]-1,0);
+			break;
+			case 'C':
+				*(display_buffer_line[0]-1) = ' ';
+				*(display_buffer_line[1]-1) = ' '; 
+				*(display_buffer_line[2]-1) = '*';
+
+				display_line(display_buffer_line[0]-1,0);
+				display_line(display_buffer_line[1]-1,1);
+			break;
+		}
+
+		// Affect state boundary
+		if (affect_state > 'C') { affect_state = 'C'; }
+		if (affect_state < 'A') { affect_state = 'A'; }
+
+		// Print display state machine
+
+		// Main Menu Boundary
+		if (cursor_stateA > 2) { cursor_stateA = 2; }
+		if (cursor_stateA < 0) { cursor_stateA = 0; }
+		switch (cursor_stateA)
+		{
+			case 0: // Instellingen menu
+				strcpy (display_buffer_line[0], "Instellingen      >");
+
+				// Submenu B Boundary
+				if (cursor_stateB > 6) { cursor_stateB = 6; }
+				if (cursor_stateB < 0) { cursor_stateB = 0; }		
+				setvars_from_eeprom(); // Lees eeprom waardes als men in het instellingen menu gaat
+				switch (cursor_stateB)
+				{
+					case 0: // Looptijd bij vloeistofsensor
+						derde_regel_instellingen ("Loopt. vl. sens.  >", 100, (uint8_t*) &c_looptijd, &cursor_stateC_temp, 1, 90, "Sec. (1-90): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 1: // bovenste inschakelnivo
+						derde_regel_instellingen ("Bov. insch. nivo <>", 101, (uint8_t*) &c_nivo_bovenste, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 2: // onderste inschakelnivo
+						derde_regel_instellingen ("Ond. insch. nivo <>", 102, (uint8_t*) &c_nivo_onderste, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 3: // uitschakel nivo
+						derde_regel_instellingen ("Uitschakel nivo  <>", 103, (uint8_t*) &c_nivo_uitschakel, &cursor_stateC_temp, 0, 255, "Cm. (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 4: // nadraai inschakelnivo
+						derde_regel_instellingen ("Nadraaitijd Pomp <>", 104, (uint8_t*) &c_nadraai, &cursor_stateC_temp, 3, 10, "Sec. (3-10): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 5: // nadraai bij hoogwater inschakelnivo
+						derde_regel_instellingen ("Nadraai. Hoogwa. <>", 105, (uint8_t*) &c_nadraai_hoogwater, &cursor_stateC_temp, 1, 90, "Sec. (1-90): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					case 6: // Id nummer
+						derde_regel_instellingen ("ID Nummer         <", 106, (uint8_t*) &c_idnummer, &cursor_stateC_temp, 0, 255, "ID (0-255): ", &event_code, display_buffer_line[1], display_buffer_line[2]);
+					break;
+					}
+			break;
+			case 1: // Storingsmeldingen menu
+				strcpy (display_buffer_line[0], "Storingen        <>");
+
+				// Submenu B Boundary
+				if (cursor_stateB > 2) { cursor_stateB = 2; }
+				if (cursor_stateB < 0) { cursor_stateB = 0; }		
+				switch (cursor_stateB)
+				{
+					case 0: // Globale meldingen
+						strcpy (display_buffer_line[1], "Globale meldingen >");
+					break;
+					case 1: // Pomp 1 specifiek
+						strcpy (display_buffer_line[1], "Pomp 1 specifiek <>");
+					break;
+					case 2: // Globale meldingen
+						strcpy (display_buffer_line[1], "Pomp 2 specifiek  <");
+					break;
+				}
+			break;
+			case 2: // Logs menu
+				strcpy (display_buffer_line[0], "Logs              <");
+
+				// Submenu B Boundary
+				if (cursor_stateB > 2) { cursor_stateB = 2; }
+				if (cursor_stateB < 0) { cursor_stateB = 0; }		
+				switch (cursor_stateB)
+				{
+					case 0: // Pomp 1
+					{
+						strcpy (display_buffer_line[1], "Pomp 1            >");
+
+						// Submenu C Boundary
+						if (cursor_stateC_temp > 1) { cursor_stateC_temp = 1; }
+						if (cursor_stateC_temp < 0) { cursor_stateC_temp = 0; }		
+						switch (cursor_stateC_temp) 
+						{
+							case 0: // Looptijd
+							{
+								sprintf(display_buffer_line[2], "Looptijd: %d", z_pomp_looptijd[0]);
+							}
+							break;
+							case 1: // Aantal inschakelingen
+							{
+								sprintf(display_buffer_line[2], "Inschakel.: %d", z_pomp_inschakelingen[0]);
+							}
+							break;
+						}
+					}
+					break;
+					case 1: // Pomp 2
+					{
+						strcpy (display_buffer_line[1], "Pomp 2           <>");
+
+						// Submenu C Boundary
+						if (cursor_stateC_temp > 1) { cursor_stateC_temp = 1; }
+						if (cursor_stateC_temp < 0) { cursor_stateC_temp = 0; }		
+						switch (cursor_stateC_temp) 
+						{
+							case 0: // Looptijd
+							{
+								sprintf(display_buffer_line[2], "Looptijd: %d", z_pomp_looptijd[1]);
+							}
+							break;
+							case 1: // Aantal inschakelingen
+							{
+								sprintf(display_buffer_line[2], "Inschakel.: %d", z_pomp_inschakelingen[1]);
+							}
+							break;
+						}
+					}
+					break;
+					case 2: // state machine status
+					{
+						strcpy (display_buffer_line[1], "FSM Status        <");
+
+						sprintf(display_buffer_line[2], "N:%d SH:%d SN:%d T:%d", s_nivo, statehoog, statenormaal, t_nadraai);
+					}
+					break;
+				}
+			break;
+		}
+		
+		//_delay_ms(10);
+
+
+
+	
 	}	
 }
 
