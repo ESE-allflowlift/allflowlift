@@ -16,8 +16,8 @@
 #define TRUE 1
 #define FALSE 0
 
-#define NIVO_BREUK 20
-#define NIVO_KORTSLUITING 980
+#define NIVO_BREUK 1
+#define NIVO_KORTSLUITING 1000
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -30,12 +30,11 @@ Legenda:
 	H Hold up
 
 TODO
-    -max looptijd implementeren (pomp in storing zetten, andere pomp word automatisch ingeschakeld door state machine)
-    *nivosensor storing
-	-Pijltjes bij logs pomp1 en pomp2
-    *opslaan laatste foutmeldingn
-    -Storingen menu
-    -Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
+ -   max looptijd implementeren (pomp in storing zetten, andere pomp word automatisch ingeschakeld door state machine)
+X    nivosensor storing
+ H	 Pijltjes bij logs pomp1 en pomp2
+X    Storingen menu
+ -   Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
 X    Cursor duidelijker huidig menu
 X    Polling fix
 X	 Fix hand auto blijft actief
@@ -46,7 +45,7 @@ X    Nivo error state (hoog?) - gaat automatisch adhv hoogwater sensor
 X	 Pomp pas uit storing als hand/auto schakelaar op auto staat
 X	 Pomp in storing zetten als hand/auto schakelaar voor pomp ingeschakeld is (automatisch word dan de andere pomp ingeschakeld door de state machine)
 X	 Algemene foutmelding pas resetten als beide pompen niet in storing zijn
-     Serial protocol
+ -   Serial protocol
 
 */
 /////////////////////////////////////////////////////////////////////// 
@@ -381,9 +380,28 @@ void f_last_3_errors_array(int error_code)
 {
 	// Alleen error_code plaatsen in array als deze niet al voorkomt in de array
 	if (last_3_errors[0] != error_code && last_3_errors[1] != error_code && last_3_errors[2] != error_code) {   
-		last_3_errors[2] = last_3_errors_[1];
-		last_3_errors[1] = last_3_errors_[0];
+		last_3_errors[2] = last_3_errors[1];
+		last_3_errors[1] = last_3_errors[0];
 		last_3_errors[0] = error_code;
+	}
+}
+
+char error_string[20];
+
+void error_message(int error_code)
+{
+	switch (error_code)
+	{
+		case 1: strcpy (error_string, "Nivo breuk"); break;
+		case 2: strcpy (error_string, "Nivo kortsluiting"); break;
+		case 3: strcpy (error_string, "Pomp 1 stroom"); break;
+		case 4: strcpy (error_string, "Pomp 2 stroom"); break;
+		case 5: strcpy (error_string, "Pomp 1 temp"); break;
+		case 6: strcpy (error_string, "Pomp 2 temp"); break;
+		case 7: strcpy (error_string, "Pomp 1 fase"); break;
+		case 8: strcpy (error_string, "Pomp 2 fase"); break;
+		case 9: strcpy (error_string, "Hoogwater"); break;
+		default: strcpy (error_string, "                   "); break;
 	}
 }
 
@@ -410,7 +428,6 @@ void f_last_3_errors(void)
 	if (s_motor_fase[1] != 0) { f_last_3_errors_array(error_code); }
 	error_code = 9;
 	if (s_hoogwater != 0) { f_last_3_errors_array(error_code); }
-	error_code = 10;
 }
 
 void f_pomp_seterror(void) 
@@ -512,6 +529,8 @@ void state_machine(void)
 	sprintf(display_buffer_line[3], "P1:%s P2:%s E:%s", temp_p1, temp_p2, temp_error);
 	display_line(display_buffer_line[3],3); // Update vierde regel
 	setvars_actuators(); // Set actuators according to globals
+
+	f_last_3_errors();
 
 	switch  (statehoog)
 	{
@@ -874,20 +893,25 @@ int main(void) {
 			break;
 			case 1: // Storingsmeldingen menu
 				strcpy (display_buffer_line[0], "Storingen        <>");
+				strcpy (display_buffer_line[2], "                   ");
 
 				// Submenu B Boundary
 				if (cursor_stateB > 2) { cursor_stateB = 2; }
 				if (cursor_stateB < 0) { cursor_stateB = 0; }		
+				
 				switch (cursor_stateB)
 				{
 					case 0: // Globale meldingen
-						strcpy (display_buffer_line[1], "Globale meldingen >");
+						error_message(last_3_errors[0]);
+						snprintf(display_buffer_line[1], 20, "1:%s",error_string);
 					break;
 					case 1: // Pomp 1 specifiek
-						strcpy (display_buffer_line[1], "Pomp 1 specifiek <>");
+						error_message(last_3_errors[1]);
+						snprintf(display_buffer_line[1], 20, "2:%s",error_string);
 					break;
 					case 2: // Globale meldingen
-						strcpy (display_buffer_line[1], "Pomp 2 specifiek  <");
+						error_message(last_3_errors[2]);
+						snprintf(display_buffer_line[1], 20, "3:%s",error_string);
 					break;
 				}
 			break;
