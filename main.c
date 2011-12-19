@@ -21,6 +21,7 @@
 #define NIVO_KORTSLUITING 1000
 #define SERIAL_TIMEOUT_CYCLES 30 // Main loop cycles before serial_state is reset to zero
 
+///////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////
 /*
@@ -218,7 +219,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC1, 0);
 	}
 	
-	if (a_pomp_active[1] != 0) 
+	if (a_pomp_active[1] == TRUE) 
 	{
 		pindriver_setpin("C", PC2, 1);
 	} 
@@ -227,7 +228,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC2, 0);
 	}
 
-	if (a_pomp_error[0] != 0) 
+	if (a_pomp_error[0] == TRUE) 
 	{
 		pindriver_setpin("C", PC3, 1);
 	} 
@@ -236,7 +237,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC3, 0);
 	}
 
-	if (a_pomp_error[1] != 0) 
+	if (a_pomp_error[1] == TRUE) 
 	{
 		pindriver_setpin("C", PC4, 1);
 	} 
@@ -245,7 +246,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC4, 0);
 	}
 
-	if (a_hoogwateralarm != 0) 
+	if (a_hoogwateralarm == TRUE) 
 	{
 		pindriver_setpin("C", PC5, 1);
 	} 
@@ -254,7 +255,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC5, 0);
 	}
 
-	if (a_error != 0) 
+	if (a_error == TRUE) 
 	{
 		pindriver_setpin("C", PC6, 1);
 	} 
@@ -263,7 +264,7 @@ void setvars_actuators(void)
 		pindriver_setpin("C", PC6, 0);
 	}
 
-	if (a_standby != 0) 
+	if (a_standby == TRUE) 
 	{
 		pindriver_setpin("C", PC7, 1);
 	} 
@@ -279,12 +280,12 @@ void setvars_actuators(void)
 void f_stop_pomp(void) 
 {
 	// Check welke pomp in bedrijf 
-	if (a_pomp_active[0] != 0) // Pomp 1 in bedrijf
+	if (a_pomp_active[0] == TRUE) // Pomp 1 in bedrijf
 	{
 		eeprom_write_word(&eeprom_z_pomp_looptijd_1, z_pomp_looptijd[0] + t_looptijd);
 		a_pomp_active[0] = 0; // Zet pomp 1 uit
 	} 
-	if (a_pomp_active[1] != 0)  // Pomp 2 in bedrijf
+	if (a_pomp_active[1] == TRUE)  // Pomp 2 in bedrijf
 	{
 		eeprom_write_word(&eeprom_z_pomp_looptijd_2, z_pomp_looptijd[1] + t_looptijd);
 		a_pomp_active[1] = 0; // Zet pomp 2 uit
@@ -295,7 +296,7 @@ void f_start_pomp_1(void)
 {
 	prevent_infinity++;
 
-	if (a_pomp_error[0] == 0 && b_hand_auto[0] == 0) // Pomp 1 niet in error en pomp 1 in auto stand
+	if (a_pomp_error[0] == FALSE && b_hand_auto[0] == FALSE) // Pomp 1 niet in error en pomp 1 in auto stand
 	{
 		a_pomp_active[0] = 1;
 		t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
@@ -315,7 +316,7 @@ void f_start_pomp_2(void)
 {
 	prevent_infinity++;
 
-	if (a_pomp_error[1] == 0 && b_hand_auto[1] == 0) // Pomp 2 niet in error en pomp 2 in auto stand
+	if (a_pomp_error[1] == FALSE && b_hand_auto[1] == FALSE) // Pomp 2 niet in error en pomp 2 in auto stand
 	{
 		a_pomp_active[1] = 1;
 		t_looptijd = 0; // Reset timer om looptijd pomp bij te houden
@@ -354,9 +355,9 @@ void f_start_pomp(void)
  */
 void f_pomp_handmatig(void) 
 {
-	if (b_hand_auto[0] != 0) // Pomp 1 in handmatig stand
+	if (b_hand_auto[0] == TRUE) // Pomp 1 in handmatig stand
 	{
-		if (b_inschakeling_hand[0] == 0) // Pomp 1 uit
+		if (b_inschakeling_hand[0] == FALSE) // Pomp 1 uit
 		{
 			a_pomp_active[0] = 0;
 		} 
@@ -367,9 +368,9 @@ void f_pomp_handmatig(void)
 	} else {
 		a_pomp_active[0] = 0;
 	}
-	if (b_hand_auto[1] != 0) // Pomp 2 in handmatig stand
+	if (b_hand_auto[1] == TRUE) // Pomp 2 in handmatig stand
 	{
-		if (b_inschakeling_hand[1] == 0) // Pomp 2 uit
+		if (b_inschakeling_hand[1] == FALSE) // Pomp 2 uit
 		{
 			a_pomp_active[1] = 0;
 		} 
@@ -444,11 +445,11 @@ void f_last_3_errors(void)
 void f_pomp_seterror(void) 
 {
 	// Alleen een reset mag de storing per pomp laten verwijderen
-	if (b_reset[0] != 0) 
+	if (b_reset[0] == TRUE) 
 	{
 		a_pomp_error[0] = 0;
 	}
-	if (b_reset[1] != 0) 
+	if (b_reset[1] == TRUE) 
 	{
 		a_pomp_error[1] = 0;
 	}
@@ -467,7 +468,7 @@ void f_pomp_seterror(void)
 		a_standby = 0;
 	}
 
-	if (a_pomp_error[0] == 0 && a_pomp_error[1] == 0) // Standby melding als geen pomp in storing is
+	if (a_pomp_error[0] == FALSE && a_pomp_error[1] == FALSE) // Standby melding als geen pomp in storing is
 	{
 		a_standby = 1;
 		a_error = 0; // Reset algemene foutmelding
@@ -486,7 +487,7 @@ void f_pomp_seterror(void)
 
 void f_update_status_vars(void) 
 {
-	if (a_pomp_active[0] != 0) 
+	if (a_pomp_active[0] == TRUE) 
 	{
 		strcpy (temp_p1, "aan");
 	}
@@ -495,7 +496,7 @@ void f_update_status_vars(void)
 		strcpy (temp_p1, "uit");
 	}
 
-	if (a_pomp_active[1] != 0) 
+	if (a_pomp_active[1] == TRUE) 
 	{
 		strcpy (temp_p2, "aan");
 	}
@@ -504,7 +505,7 @@ void f_update_status_vars(void)
 		strcpy (temp_p2, "uit");
 	}
 
-	if (a_error != 0)
+	if (a_error == TRUE)
 	{
 		strcpy (temp_error, "ja");
 	}
@@ -833,7 +834,6 @@ int main(void) {
 						cursor_stateB--;
 						setvars_from_eeprom(); // Lees eeprom waardes 
 					}
-
 					display_line(display_buffer_line[1]-1,1);
 					display_line(display_buffer_line[2]-1,2);
 				break;
