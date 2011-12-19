@@ -12,12 +12,14 @@
 #include "pin_driver.h"
 #include "timer.h"
 #include "adc.h"
+#include "usart_driver.h"
 
 #define TRUE 1
 #define FALSE 0
 
 #define NIVO_BREUK 1
 #define NIVO_KORTSLUITING 1000
+#define SERIAL_TIMEOUT_CYCLES 30 // Main loop cycles before serial_state is reset to zero
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -30,22 +32,25 @@ Legenda:
 	H Hold up
 
 TODO
- -   max looptijd implementeren (pomp in storing zetten, andere pomp word automatisch ingeschakeld door state machine)
+ *	 Pijltjes in menu bij logs pomp1 en pomp2
 X    nivosensor storing
- H	 Pijltjes bij logs pomp1 en pomp2
 X    Storingen menu
- -   Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
+X    Privilege systeem (beheerder/normaal nivo). Toetsencombi (cursor up/down) zorgt voor beheerder modus. Timeout na X tijd.
 X    Cursor duidelijker huidig menu
 X    Polling fix
 X	 Fix hand auto blijft actief
 X    Pompen omstebeurt
- H	 bij functie start_pomp gaat de pomp aan en direct weer uit
 X    Pomp knippert bij error in state normaal (state 4 naar 6)
 X    Nivo error state (hoog?) - gaat automatisch adhv hoogwater sensor
 X	 Pomp pas uit storing als hand/auto schakelaar op auto staat
 X	 Pomp in storing zetten als hand/auto schakelaar voor pomp ingeschakeld is (automatisch word dan de andere pomp ingeschakeld door de state machine)
 X	 Algemene foutmelding pas resetten als beide pompen niet in storing zijn
- -   Serial protocol
+X    Serial protocol
+H	 bij functie start_pomp gaat de pomp aan en direct weer uit
+-	 Sla laatste 3 foutmeldingen op in eeprom
+-	 Schakelaar hand/auto moet een toggle zijn, niet inhouden, storing ledje van pomp laten knipperen ter indicatie
+-   max looptijd implementeren (pomp in storing zetten, andere pomp word automatisch ingeschakeld door state machine)
+-	 Schakelaar hand/auto moet een toggle zijn, niet inhouden, storing ledje van pomp laten knipperen ter indicatie
 
 */
 /////////////////////////////////////////////////////////////////////// 
@@ -53,6 +58,12 @@ X	 Algemene foutmelding pas resetten als beide pompen niet in storing zijn
 // State machine pomp
 int statehoog = 1;
 int statenormaal = 1;
+
+// State voor serial protocol
+int serialstate = 0;
+int serialstate_timeout = 0; // State timeout (after timeout reset serialstate to zero)
+int serialstate_counter = 0; //Count serial bytes
+int serialstate_vars[20];
 
 // Display buffer pointers
 char display_buffer[86]; // 86 voor elke \0 terminator
@@ -680,6 +691,7 @@ int main(void) {
 	pindriver_init(); // Init pin driver
 	timerdriver_init(); // Init timer driver
 	adc_init(); // Init ADC
+	usart_init(); // Init Usart
 
 	// Init PA1 (hoogwater)
 	DDRA &= ~(1 << PA1);
@@ -712,6 +724,9 @@ int main(void) {
 
 	int count_state_routine = 0; // State machine pompen counter
 
+	int privilege_level = 0;
+	int privilege_timeout = 0;
+
 	// Infinite loop
 	while (1) 
 	{
@@ -725,6 +740,18 @@ int main(void) {
 		{
 			count_state_routine = 0;
 			state_machine();
+		}
+
+		// Serialstate timeout handler
+		if (serialstate != 0)
+		{
+			serialstate_timeout++;
+			if (serialstate_timeout > SERIAL_TIMEOUT_CYCLES)
+			{
+				serialstate = 0;
+				serialstate_timeout = 0;
+				serialstate_counter = 0;
+			}
 		}
 
 		// Process event
@@ -760,67 +787,94 @@ int main(void) {
 		}
 
 		// Cursor state machine
-		switch (affect_state)
+
+		if (b_cursor_left != 0 && b_cursor_right != 0 && b_cursor_down != 0) // Privilege check
 		{
-			case 'A':
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateA++;
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateA--;
-				}
-
-				display_line(display_buffer_line[0]-1,0);
-				display_line(display_buffer_line[1]-1,1);
-				display_line(display_buffer_line[2]-1,2);
-			break;
-			case 'B':
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateB++;
-					setvars_from_eeprom(); // Lees eeprom waardes 
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateB--;
-					setvars_from_eeprom(); // Lees eeprom waardes 
-				}
-
-				display_line(display_buffer_line[1]-1,1);
-				display_line(display_buffer_line[2]-1,2);
-			break;
-			case 'C':
-				if (b_cursor_right != 0) 
-				{
-					cursor_stateC_temp++;
-				}
-				if (b_cursor_left != 0) 
-				{
-					cursor_stateC_temp--;
-				}
-
-				display_line(display_buffer_line[2]-1,2);
-			break;
+			privilege_level = 1; 
+			privilege_timeout = 0; // Reset timeout
 		}
-
-		if (b_cursor_down != 0)
+		else 
 		{
-			affect_state++;
-			if (affect_state == 'C') 
-			{ 
-				cursor_stateC_temp = 0; // Reset van submenu B naar submenu C
+			if (b_cursor_up != 0 || b_cursor_down != 0 || b_cursor_left != 0 || b_cursor_right != 0) // Reset privilege timeout if any cursor keys are pressed to prevent unexpected privilege drop
+			{
+				privilege_timeout = 0;
 			}
-		}
-		if (b_cursor_up != 0)
-		{
-			affect_state--;
-			if (affect_state == 'B') { 
-				// cursor_stateC_temp hier niet resetten! anders word eeprom niet juist opgeslagen
-				event_submenuC = 1; //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
+			privilege_timeout++;
+			if (privilege_timeout > 200)
+			{
+				privilege_timeout = 0;
+				privilege_level = 0;
 			}
-		}
+
+			switch (affect_state)
+			{
+				case 'A':
+					if (b_cursor_right != 0) 
+					{
+						cursor_stateA++;
+					}
+					if (b_cursor_left != 0) 
+					{
+						cursor_stateA--;
+					}
+
+					display_line(display_buffer_line[0]-1,0);
+					display_line(display_buffer_line[1]-1,1);
+					display_line(display_buffer_line[2]-1,2);
+				break;
+				case 'B':
+					if (b_cursor_right != 0) 
+					{
+						cursor_stateB++;
+						setvars_from_eeprom(); // Lees eeprom waardes 
+					}
+					if (b_cursor_left != 0) 
+					{
+						cursor_stateB--;
+						setvars_from_eeprom(); // Lees eeprom waardes 
+					}
+
+					display_line(display_buffer_line[1]-1,1);
+					display_line(display_buffer_line[2]-1,2);
+				break;
+				case 'C':
+					if (b_cursor_right != 0) 
+					{
+						cursor_stateC_temp++;
+					}
+					if (b_cursor_left != 0) 
+					{
+						cursor_stateC_temp--;
+					}
+
+					display_line(display_buffer_line[2]-1,2);
+				break;
+			}
+
+			if (b_cursor_down != 0)
+			{
+				affect_state++;
+				if (affect_state == 'C') 
+				{ 
+					if (privilege_level == 0 && cursor_stateA == 0)
+					{
+						affect_state = 'B'; // Not allowed
+					} 
+					else // Allowed
+					{
+					cursor_stateC_temp = 0; // Reset van submenu B naar submenu C
+					}
+				}
+			}
+			if (b_cursor_up != 0)
+			{
+				affect_state--;
+				if (affect_state == 'B') { 
+					// cursor_stateC_temp hier niet resetten! anders word eeprom niet juist opgeslagen
+					event_submenuC = 1; //Simuleer event voor transitie van submenu C naar B (EEPROM SAVE)
+				}
+			}
+		} // End privilege check
 
 		// Update cursor state machine
 		switch (affect_state)

@@ -9,7 +9,7 @@
 
 #define P_S PD7
 #define P_CL PD5
-#define P_PE PD0
+#define P_PE PD6
 #define P_MR PD3
 #define DELAY_S 1
 
